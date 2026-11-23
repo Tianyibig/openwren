@@ -1,11 +1,26 @@
+import type { Lang } from "./i18n";
+
 const DAY = 24 * 60 * 60 * 1000;
 
 // Own name tables: Intl output differs between runtimes ("Sep" vs "Sept").
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+// Chinese writes months and weekdays as numbers and characters rather than names.
+const MONTHS_ZH = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
+const WEEKDAYS_ZH = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 
-/** "14 Sep 2025" */
+let lang: Lang = "en";
+
+/** The language dates are written in. Set from the interface language. */
+export function useDateLanguage(next: Lang) {
+  lang = next;
+}
+
+const chinese = () => lang === "zh";
+
+/** "14 Sep 2025", or "2025年9月14日" */
 function dayMonthYear(d: Date): string {
+  if (chinese()) return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
   return `${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)} ${d.getFullYear()}`;
 }
 
@@ -21,11 +36,11 @@ export function daysAgo(date: Date, now: Date): number {
 /** Section heading for the message list. */
 export function groupLabel(date: Date, now: Date): string {
   const d = daysAgo(date, now);
-  if (d <= 0) return "Today";
-  if (d === 1) return "Yesterday";
-  if (d < 7) return "This week";
+  if (d <= 0) return chinese() ? "今天" : "Today";
+  if (d === 1) return chinese() ? "昨天" : "Yesterday";
+  if (d < 7) return chinese() ? "本周" : "This week";
   if (date.getFullYear() === now.getFullYear()) {
-    return MONTHS[date.getMonth()];
+    return chinese() ? MONTHS_ZH[date.getMonth()] : MONTHS[date.getMonth()];
   }
   return String(date.getFullYear());
 }
@@ -43,7 +58,10 @@ export function useTwelveHourClock(on: boolean) {
 export function clock(date: Date): string {
   const minutes = pad(date.getMinutes());
   if (!twelveHour) return `${date.getHours()}:${minutes}`;
-  return `${date.getHours() % 12 || 12}:${minutes} ${date.getHours() < 12 ? "AM" : "PM"}`;
+  const hour = `${date.getHours() % 12 || 12}:${minutes}`;
+  const half = date.getHours() < 12;
+  if (chinese()) return `${half ? "上午" : "下午"} ${hour}`;
+  return `${hour} ${half ? "AM" : "PM"}`;
 }
 
 /** Short time for a list row: "11:58", "Wed 15:55" or "14 Sep 2025". */
@@ -51,7 +69,7 @@ export function shortTime(date: Date, now: Date): string {
   const d = daysAgo(date, now);
   const hm = clock(date);
   if (d <= 0) return hm;
-  if (d < 7) return `${WEEKDAYS[date.getDay()]} ${hm}`;
+  if (d < 7) return `${chinese() ? WEEKDAYS_ZH[date.getDay()] : WEEKDAYS[date.getDay()]} ${hm}`;
   return dayMonthYear(date);
 }
 
@@ -59,9 +77,9 @@ export function shortTime(date: Date, now: Date): string {
 export function longTime(date: Date, now: Date): string {
   const d = daysAgo(date, now);
   const hm = clock(date);
-  if (d <= 0) return `Today ${hm}`;
-  if (d === 1) return `Yesterday ${hm}`;
-  return `${dayMonthYear(date)}, ${hm}`;
+  if (d <= 0) return `${chinese() ? "今天" : "Today"} ${hm}`;
+  if (d === 1) return `${chinese() ? "昨天" : "Yesterday"} ${hm}`;
+  return chinese() ? `${dayMonthYear(date)} ${hm}` : `${dayMonthYear(date)}, ${hm}`;
 }
 
 /** Date that lies `years` calendar years before `now`. */

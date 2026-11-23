@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar, CategoryDot, ContextMenu, IconButton, Marked } from "../components/ui";
 import { groupLabel, shortTime } from "../lib/dates";
 import { authProblem, nameProblem } from "../lib/privacy";
+import { useT } from "../lib/useTranslate";
 import { currentFolder, useStore } from "../store";
 import type { Only } from "../store";
 import type { MessageSummary, StoredDraft } from "../types";
@@ -33,6 +34,7 @@ function sections(items: MessageSummary[], label: (m: MessageSummary) => string)
 function Row({ m, now, query, onMenu }: { m: MessageSummary; now: Date; query: string; onMenu: (x: number, y: number, m: MessageSummary) => void }) {
   const open = useStore((s) => s.messageId === m.id);
   const ticked = useStore((s) => s.selected.includes(m.id));
+  const tr = useT();
   const { selectMessage, prefetch } = useStore.getState();
   // What can be told without opening the message: failed sender checks, or a name the address does not match.
   const warn = useStore((s) => s.settings.phishing_warnings !== "off");
@@ -71,11 +73,11 @@ function Row({ m, now, query, onMenu }: { m: MessageSummary; now: Date; query: s
             <Marked text={m.fromName} query={query} />
           </span>
           {suspicious && (
-            <span className="flex-none text-[#b7791f]" title={`Be careful: ${suspicious}`} role="img" aria-label="Suspicious message">
+            <span className="flex-none text-[#b7791f]" title={suspicious} role="img" aria-label={tr("list.suspicious")}>
               <IconAlertTriangle size={15} stroke={1.6} />
             </span>
           )}
-          {m.unread && <span className="size-[7px] flex-none rounded-full bg-dot" aria-label="Unread" />}
+          {m.unread && <span className="size-[7px] flex-none rounded-full bg-dot" aria-label={tr("list.unread")} />}
           <span className="flex flex-none items-center gap-1 text-ink3">
             {m.categories.map((c) => (
               <CategoryDot key={c} name={c} />
@@ -87,7 +89,7 @@ function Row({ m, now, query, onMenu }: { m: MessageSummary; now: Date; query: s
           <span className={`ml-auto flex-none pl-1 text-xs whitespace-nowrap ${m.unread ? "text-brand" : "text-ink3"}`}>{shortTime(date, now)}</span>
         </div>
         <div className={`truncate ${m.unread ? "font-semibold text-ink" : "text-ink2"}`}>
-          <Marked text={m.subject || "(no subject)"} query={query} />
+          <Marked text={m.subject || tr("list.noSubject")} query={query} />
         </div>
         {/* A non-breaking space keeps the row height while the preview is still downloading. */}
         <div className={`truncate ${m.unread ? "text-ink2" : "text-ink3"}`}>{query ? `${m.folderName} · ${m.accountAddress}` : m.preview || " "}</div>
@@ -100,6 +102,7 @@ function Row({ m, now, query, onMenu }: { m: MessageSummary; now: Date; query: s
 function DraftRow({ d, now }: { d: StoredDraft; now: Date }) {
   const open = useStore((s) => s.draft?.id === d.id);
   const { openDraft, deleteDraft } = useStore.getState();
+  const tr = useT();
   return (
     <div
       role="option"
@@ -110,19 +113,19 @@ function DraftRow({ d, now }: { d: StoredDraft; now: Date }) {
       style={{ paddingTop: "var(--row-pad)", paddingBottom: "var(--row-pad)" }}
       className={`group relative flex cursor-default gap-3 border-b border-edge px-4 ${open ? "bg-sel" : "hover:bg-hover"}`}
     >
-      <Avatar name={d.to || "Draft"} />
+      <Avatar name={d.to || tr("list.draft")} />
       <div className="min-w-0 flex-1">
         <div className="flex justify-between gap-2">
-          <span className="truncate">{d.to || "(no recipient)"}</span>
+          <span className="truncate">{d.to || tr("list.noRecipient")}</span>
           <span className="flex-none text-xs whitespace-nowrap text-ink2 group-hover:invisible">{shortTime(new Date(d.updatedAt * 1000), now)}</span>
         </div>
-        <div className="truncate">{d.subject || "(no subject)"}</div>
+        <div className="truncate">{d.subject || tr("list.noSubject")}</div>
         <div className="truncate text-ink2">{d.html.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").trim() || " "}</div>
       </div>
       {/* The open draft is discarded from the composer, which knows about unsaved typing. */}
       {!open && (
         <div className="absolute top-6 right-1.5 hidden rounded-lg bg-card shadow-sm group-hover:flex" onClick={(e) => e.stopPropagation()}>
-          <IconButton label="Discard draft" className="size-7" onClick={() => void deleteDraft(d.id)}>
+          <IconButton label={tr("list.discardDraft")} className="size-7" onClick={() => void deleteDraft(d.id)}>
             <IconTrash size={16} />
           </IconButton>
         </div>
@@ -158,29 +161,36 @@ export function MessageList({ width }: { width: number }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
   const searchServer = useStore((s) => s.searchServer);
+  const tr = useT();
   const [menu, setMenu] = useState<{ x: number; y: number; m: MessageSummary } | null>(null);
   // Refreshed whenever the list changes, so "Today" stays right overnight.
   const now = useMemo(() => new Date(), [items]);
   const focusedInbox = useStore((s) => s.settings.focused_inbox !== "off");
   // "Other" (mailings only) is offered for inboxes while the Focused inbox setting is on.
   const isInbox = folder?.role === "inbox" && focusedInbox;
-  const chips: [Only, string][] = [["all", "All"], ["unread", "Unread"], ["flagged", "Flagged"], ...(isInbox ? ([["other", "Other"]] as [Only, string][]) : [])];
+  const chips: [Only, string][] = [
+    ["all", tr("list.chipAll")],
+    ["unread", tr("list.chipUnread")],
+    ["flagged", tr("list.chipFlagged")],
+    ...(isInbox ? ([["other", tr("list.chipOther")]] as [Only, string][]) : []),
+  ];
 
   const groups = useMemo(() => {
     if (query) return sections(items, (m) => String(new Date(m.date * 1000).getFullYear()));
-    const rest = sections(
+    return sections(
       items.filter((m) => !m.pinned),
       (m) => groupLabel(new Date(m.date * 1000), now),
     );
-    const pins = pinned.filter((m) => only === "all" || (only === "unread" ? m.unread : m.flagged));
-    return pins.length ? [{ label: "Pinned", items: pins }, ...rest] : rest;
-  }, [items, pinned, query, now, only]);
+  }, [items, query, now]);
+  // Pinned mail is shown first, whichever folder it is in.
+  const pins = pinned.filter((m) => only === "all" || (only === "unread" ? m.unread : m.flagged));
+  const shown = pins.length ? [{ label: tr("list.pinned"), items: pins }, ...groups] : groups;
 
   // Drafts written here are listed above the server's Drafts folder of the same account.
   const drafts = useMemo(() => (!query && folder?.role === "drafts" ? allDrafts.filter((d) => d.accountId === folder.accountId) : []), [allDrafts, folder, query]);
   const empty = items.length === 0 && pinned.length === 0 && drafts.length === 0;
   return (
-    <section className="flex flex-none flex-col overflow-hidden bg-card" style={{ width }} aria-label="Messages">
+    <section className="flex flex-none flex-col overflow-hidden bg-card" style={{ width }} aria-label={tr("list.messages")}>
       <div className="flex-none border-b border-edge px-4 pt-3.5 pb-3">
         <label className={`flex h-9 items-center gap-2 rounded-lg px-3 ${typed ? "bg-card ring-1 ring-line" : "bg-canvas focus-within:bg-card focus-within:ring-1 focus-within:ring-line"}`}>
           <IconSearch size={16} className="flex-none text-ink3" />
@@ -189,13 +199,13 @@ export function MessageList({ width }: { width: number }) {
             value={typed}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Escape" && setQuery("")}
-            placeholder="Search mail"
-            title="Try from:name, has:attachment or before:2024-01-31"
-            aria-label="Search mail"
+            placeholder={tr("list.searchPlaceholder")}
+            title={tr("list.searchHint")}
+            aria-label={tr("list.searchPlaceholder")}
             className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-ink3"
           />
           {typed ? (
-            <button type="button" aria-label="Clear search" className="flex-none text-ink3 hover:text-ink" onClick={() => setQuery("")}>
+            <button type="button" aria-label={tr("list.clearSearch")} className="flex-none text-ink3 hover:text-ink" onClick={() => setQuery("")}>
               <IconX size={16} />
             </button>
           ) : (
@@ -206,12 +216,12 @@ export function MessageList({ width }: { width: number }) {
           <>
             <SearchChips />
             <div className="mt-2 flex items-baseline text-xs text-ink2">
-              <span className="text-ink">{items.length === 1 ? "1 result" : `${items.length} results`}</span>
-              <span className="ml-auto">Newest first</span>
+              <span className="text-ink">{items.length === 1 ? tr("list.resultOne") : tr("list.resultMany", { n: items.length })}</span>
+              <span className="ml-auto">{tr("list.newestFirst")}</span>
             </div>
           </>
         ) : (
-          <div className="mt-2.5 flex flex-wrap items-center gap-1.5" role="toolbar" aria-label="Show">
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5" role="toolbar" aria-label={tr("list.show")}>
             {chips.map(([value, name]) => (
               <button
                 key={value}
@@ -230,7 +240,7 @@ export function MessageList({ width }: { width: number }) {
         className="min-h-0 flex-1 overflow-y-auto pb-1.5"
         role="listbox"
         aria-multiselectable
-        aria-label="Message list"
+        aria-label={tr("list.messageList")}
         onScroll={(e) => {
           const el = e.currentTarget;
           if (hasMore && el.scrollHeight - el.scrollTop - el.clientHeight < 600) void loadMore();
@@ -238,13 +248,13 @@ export function MessageList({ width }: { width: number }) {
       >
         {drafts.length > 0 && (
           <div>
-            <div className="border-b border-edge px-4 pt-3 pb-2 text-xs text-ink3">Written here</div>
+            <div className="border-b border-edge px-4 pt-3 pb-2 text-xs text-ink3">{tr("list.writtenHere")}</div>
             {drafts.map((d) => (
               <DraftRow key={d.id} d={d} now={now} />
             ))}
           </div>
         )}
-        {groups.map((g) => (
+        {shown.map((g) => (
           <div key={g.label}>
             <div className="border-b border-edge px-4 pt-3 pb-2 text-xs text-ink3">{g.label}</div>
             {g.items.map((m) => (
@@ -255,19 +265,21 @@ export function MessageList({ width }: { width: number }) {
         {empty && (
           <p className="px-4 py-10 text-center text-ink2">
             {query
-              ? "No mail matches. Try fewer words or another date range."
+              ? tr("list.noMatch")
               : !folder
-                ? "Add an account to see your mail."
+                ? tr("list.needAccount")
                 : only === "other"
-                  ? "No mailings here."
-                  : only !== "all"
-                    ? `No ${only} mail here.`
-                    : "This folder is empty."}
+                  ? tr("list.noMailings")
+                  : only === "unread"
+                    ? tr("list.noUnread")
+                    : only === "flagged"
+                      ? tr("list.noFlagged")
+                      : tr("list.emptyFolder")}
           </p>
         )}
         {query && (
           <button type="button" onClick={() => void searchServer()} className="mx-auto my-2 block rounded-full px-3 py-1.5 text-brand hover:bg-hover">
-            Search the server for more
+            {tr("list.searchServer")}
           </button>
         )}
       </div>

@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import { backend, errorText } from "./backend";
 import type { UpdateAvailable } from "./backend";
-import { longTime, useTwelveHourClock } from "./lib/dates";
+import { longTime, useDateLanguage, useTwelveHourClock } from "./lib/dates";
+import { language } from "./lib/i18n";
 import { parseMailto } from "./lib/mailto";
 import { cleanMail } from "./lib/privacy";
 import { SIGNATURE_CID, hasPicture, signatureHtml } from "./lib/signature";
@@ -411,6 +412,7 @@ export const useStore = create<State>((set, get) => {
       });
       const split = get().settings.focused_inbox !== settings.focused_inbox;
       useTwelveHourClock(settings.time_format === "12");
+      useDateLanguage(language(settings.language));
       set({ signatures, signatureDefaults, settings });
       if (split) await loadList(false); // the first list was loaded before the preference was known
     },
@@ -419,8 +421,9 @@ export const useStore = create<State>((set, get) => {
       set((s) => ({ settings: { ...s.settings, [key]: value } }));
       await backend.setSetting(key, value);
       if (key === "time_format") useTwelveHourClock(value === "12");
+      if (key === "language") useDateLanguage(language(value));
       // These change what the list shows: read it again so every row is redrawn.
-      if (key === "focused_inbox" || key === "time_format") await loadList(true);
+      if (key === "focused_inbox" || key === "time_format" || key === "language") await loadList(true);
     },
 
     selectFolder: (folderId) => {
