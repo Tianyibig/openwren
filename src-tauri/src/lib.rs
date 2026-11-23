@@ -1,6 +1,7 @@
 pub mod actions;
 pub mod autostart;
 pub mod blocked;
+pub mod cjk;
 pub mod db;
 pub mod drafts;
 pub mod error;

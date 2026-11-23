@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use rusqlite::{params, Connection, OptionalExtension, Row};
 
+use crate::cjk;
 use crate::error::Result;
 use crate::model::*;
 use crate::parse::{Body, Header};
@@ -262,7 +263,12 @@ pub fn insert_message(conn: &Connection, m: &NewMessage) -> Result<i64> {
     conn.execute("INSERT INTO message_folders (message_id, folder_id, uid, date) VALUES (?1, ?2, ?3, ?4)", params![id, m.folder_id, m.uid, h.date.unwrap_or(m.fallback_date)])?;
     conn.execute(
         "INSERT INTO search_index (rowid, subject, sender, recipients, body) VALUES (?1, ?2, ?3, ?4, '')",
-        params![id, h.subject, format!("{} {}", h.from_name, h.from_address), format!("{} {}", h.to_list, h.cc_list)],
+        params![
+            id,
+            cjk::expand(&h.subject),
+            cjk::expand(&format!("{} {}", h.from_name, h.from_address)),
+            cjk::expand(&format!("{} {}", h.to_list, h.cc_list))
+        ],
     )?;
     Ok(id)
 }
@@ -315,7 +321,7 @@ pub fn save_body(conn: &mut Connection, id: i64, body: &Body) -> Result<()> {
         "UPDATE messages SET preview = ?2, has_attachment = ?3 WHERE id = ?1",
         params![id, body.preview, !body.attachments.is_empty()],
     )?;
-    tx.execute("UPDATE search_index SET body = ?2 WHERE rowid = ?1", params![id, body.plain])?;
+    tx.execute("UPDATE search_index SET body = ?2 WHERE rowid = ?1", params![id, cjk::expand(&body.plain)])?;
     tx.commit()?;
     Ok(())
 }
@@ -457,28 +463,39 @@ pub fn search(conn: &Connection, query: &str, filters: &SearchFilters, now: chro
     let mut sql = String::from(SUMMARY);
     let mut wheres: Vec<String> = Vec::new();
     let mut values: Vec<Value> = Vec::new();
-    let mut bind = |clause: &str, value: Value, wheres: &mut Vec<String>| {
+    /// Adds `clause` with its single `?` turned into the next numbered parameter.
+    fn bind(values: &mut Vec<Value>, wheres: &mut Vec<String>, clause: &str, value: Value) {
         values.push(value);
         wheres.push(clause.replace('?', &format!("?{}", values.len())));
-    };
+    }
     if let Some(fts) = &parsed.fts {
         sql.push_str(" JOIN search_index s ON s.rowid = m.id");
-        bind("search_index MATCH ?", Value::Text(fts.clone()), &mut wheres);
+        bind(&mut values, &mut wheres, "search_index MATCH ?", Value::Text(fts.clone()));
+    }
+    // A single character written without spaces is shorter than the pairs the index
+    // holds, so it is looked for in the subject and in the body text instead.
+    for text in &parsed.scan {
+        let like = format!("%{text}%");
+        values.push(Value::Text(like.clone()));
+        let subject = values.len();
+        values.push(Value::Text(like));
+        let body = values.len();
+        wheres.push(format!("(m.subject LIKE ?{subject} OR EXISTS (SELECT 1 FROM bodies b WHERE b.message_id = m.id AND b.plain LIKE ?{body}))"));
     }
     if let Some(account) = filters.account_id {
-        bind("m.account_id = ?", Value::Integer(account), &mut wheres);
+        bind(&mut values, &mut wheres, "m.account_id = ?", Value::Integer(account));
     }
     // The chips and the typed operators both narrow the range; the tighter bound wins.
     let after = [chip_after, parsed.after].into_iter().flatten().max();
     let before = [chip_before, parsed.before].into_iter().flatten().min();
     if let Some(after) = after {
-        bind("m.date >= ?", Value::Integer(after), &mut wheres);
+        bind(&mut values, &mut wheres, "m.date >= ?", Value::Integer(after));
     }
     if let Some(before) = before {
-        bind("m.date < ?", Value::Integer(before), &mut wheres);
+        bind(&mut values, &mut wheres, "m.date < ?", Value::Integer(before));
     }
     if let Some(folder) = &parsed.folder {
-        bind("(f.name LIKE ? OR f.role = lower(?))", Value::Text(folder.clone()), &mut wheres);
+        bind(&mut values, &mut wheres, "(f.name LIKE ? OR f.role = lower(?))", Value::Text(folder.clone()));
     }
     if filters.has_attachment || parsed.has_attachment {
         wheres.push("m.has_attachment = 1".into());
@@ -1042,6 +1059,26 @@ mod tests {
         // A server that renumbers a folder starts its change counter again too.
         set_folder_modseq(&conn, folder, None).unwrap();
         assert_eq!(folder_modseq(&conn, folder).unwrap(), None);
+    }
+
+    #[test]
+    fn chinese_mail_is_found_by_a_word_inside_it() {
+        let mut conn = crate::store::open_in_memory().unwrap();
+        let account = insert_account(&conn, "ann@work.cn", "Ann", "imap", &AccountSettings::default()).unwrap();
+        let folder = upsert_folder(&conn, account, "INBOX", "Inbox", "inbox").unwrap();
+        let header = Header { from_name: "张三".into(), from_address: "zhang@work.cn".into(), subject: "增值税发票已开具".into(), date: Some(1_700_000_000), ..Header::default() };
+        let id = insert_message(&conn, &NewMessage { account_id: account, folder_id: folder, uid: Some(1), header: &header, fallback_date: 0, size: 10, unread: true, flagged: false }).unwrap();
+        let body = Body { html: None, plain: "请查收附件中的增值税发票".into(), preview: "请查收".into(), attachments: Vec::new() };
+        save_body(&mut conn, id, &body).unwrap();
+
+        let filters = SearchFilters { account_id: None, has_attachment: false, date: "any".into(), after: None, before: None };
+        let found = |q: &str| search(&conn, q, &filters, chrono::Utc::now(), 50).unwrap().len();
+        assert_eq!(found("发票"), 1, "a word inside a sentence");
+        assert_eq!(found("增值税"), 1);
+        assert_eq!(found("附件"), 1);
+        assert_eq!(found("票"), 1, "one character falls back to a text scan");
+        assert_eq!(found("invoice"), 0);
+        assert_eq!(found("发票 报销"), 0);
     }
 
     #[test]
