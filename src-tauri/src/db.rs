@@ -402,7 +402,8 @@ pub fn body_counts(conn: &Connection, account_id: i64) -> Result<(u32, u32)> {
 // ---------- messages: reading ----------
 
 const SUMMARY: &str = "SELECT m.id, m.account_id, f.id, f.name, a.address, m.from_name, m.from_address, m.to_list, m.subject,
-        m.preview, m.date, m.unread, m.flagged, m.pinned, m.focused, m.has_attachment, m.categories, m.snoozed_until, m.auth
+        m.preview, m.date, m.unread, m.flagged, m.pinned, m.focused, m.has_attachment, m.categories, m.snoozed_until, m.auth,
+        m.thread_key
    FROM messages m JOIN message_folders mf ON mf.message_id = m.id
    JOIN folders f ON f.id = mf.folder_id JOIN accounts a ON a.id = m.account_id";
 
@@ -427,6 +428,7 @@ fn summary(r: &Row) -> rusqlite::Result<MessageSummary> {
         categories: serde_json::from_str(&r.get::<_, String>(16)?).unwrap_or_default(),
         snoozed_until: r.get(17)?,
         auth: r.get(18)?,
+        thread_key: r.get(19)?,
     })
 }
 

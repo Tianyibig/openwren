@@ -46,6 +46,8 @@ export interface MessageSummary {
   snoozedUntil: number | null;
   /** The mail server's sender checks, such as "id=mx.example.com;spf=pass;dkim=pass;dmarc=fail"; null when not read yet. */
   auth: string | null;
+  /** Which conversation the message belongs to, when it is known. */
+  threadKey?: string | null;
 }
 
 export interface Attachment {

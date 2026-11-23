@@ -1,8 +1,9 @@
-import { IconAlertTriangle, IconFlag, IconPaperclip, IconPin, IconSearch, IconTrash, IconX } from "@tabler/icons-react";
+import { IconAlertTriangle, IconChevronRight, IconFlag, IconPaperclip, IconPin, IconSearch, IconTrash, IconX } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar, CategoryDot, ContextMenu, IconButton, Marked } from "../components/ui";
 import { groupLabel, shortTime } from "../lib/dates";
 import { authProblem, nameProblem } from "../lib/privacy";
+import { conversations, type Conversation } from "../lib/threads";
 import { useT } from "../lib/useTranslate";
 import { currentFolder, useStore } from "../store";
 import type { Only } from "../store";
@@ -14,14 +15,14 @@ import { MOD, mod } from "../lib/keys";
 /** Drag-and-drop type for message ids dragged onto a folder. */
 export const DRAG_TYPE = "application/x-openwren-messages";
 
-interface Section {
+interface Section<T> {
   label: string;
-  items: MessageSummary[];
+  items: T[];
 }
 
-/** Group messages that are already sorted newest first. */
-function sections(items: MessageSummary[], label: (m: MessageSummary) => string): Section[] {
-  const out: Section[] = [];
+/** Group things that are already sorted newest first by their section label. */
+function sections<T>(items: T[], label: (x: T) => string): Section<T>[] {
+  const out: Section<T>[] = [];
   for (const m of items) {
     const l = label(m);
     const last = out[out.length - 1];
@@ -31,7 +32,29 @@ function sections(items: MessageSummary[], label: (m: MessageSummary) => string)
   return out;
 }
 
-function Row({ m, now, query, onMenu }: { m: MessageSummary; now: Date; query: string; onMenu: (x: number, y: number, m: MessageSummary) => void }) {
+/** How a row stands for a whole conversation: how many messages, and whether they show. */
+interface Fold {
+  count: number;
+  expanded: boolean;
+  toggle: () => void;
+}
+
+function Row({
+  m,
+  now,
+  query,
+  onMenu,
+  thread,
+  nested,
+}: {
+  m: MessageSummary;
+  now: Date;
+  query: string;
+  onMenu: (x: number, y: number, m: MessageSummary) => void;
+  thread?: Fold;
+  /** A message shown under the conversation it belongs to. */
+  nested?: boolean;
+}) {
   const open = useStore((s) => s.messageId === m.id);
   const ticked = useStore((s) => s.selected.includes(m.id));
   const tr = useT();
@@ -64,11 +87,29 @@ function Row({ m, now, query, onMenu }: { m: MessageSummary; now: Date; query: s
       style={{ paddingTop: "var(--row-pad)", paddingBottom: "var(--row-pad)" }}
       // Rows run edge to edge and are divided by hairlines. Unread mail is bold, with a dot and a blue time;
       // once read, the sender and subject drop to regular weight and the subject turns grey.
-      className={`flex cursor-default gap-3 border-b border-edge px-4 ${open || ticked ? "bg-sel" : "hover:bg-hover"}`}
+      // A message shown under its conversation is indented, so the grouping is visible.
+      className={`flex cursor-default gap-3 border-b border-edge px-4 ${nested ? "pl-9" : ""} ${open || ticked ? "bg-sel" : "hover:bg-hover"}`}
     >
       <Avatar name={m.fromName} address={m.fromAddress} auth={m.auth} accountId={m.accountId} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
+          {thread && (
+            <button
+              type="button"
+              aria-expanded={thread.expanded}
+              aria-label={thread.expanded ? tr("list.foldThread") : tr("list.expandThread")}
+              title={thread.expanded ? tr("list.foldThread") : tr("list.expandThread")}
+              onClick={(e) => {
+                // Opening the conversation is not the same as opening the newest message.
+                e.stopPropagation();
+                thread.toggle();
+              }}
+              className="-ml-1 flex flex-none items-center gap-0.5 rounded text-xs text-ink3 hover:text-ink"
+            >
+              <IconChevronRight size={14} stroke={2} className={thread.expanded ? "rotate-90" : ""} />
+              {thread.count}
+            </button>
+          )}
           <span className={`truncate text-ink ${m.unread ? "font-semibold" : ""}`}>
             <Marked text={m.fromName} query={query} />
           </span>
@@ -163,6 +204,20 @@ export function MessageList({ width }: { width: number }) {
   const searchServer = useStore((s) => s.searchServer);
   const tr = useT();
   const [menu, setMenu] = useState<{ x: number; y: number; m: MessageSummary } | null>(null);
+  // Folded conversations: the setting keeps the choice, and `opened` holds the ones showing.
+  const collapsed = useStore((s) => s.settings.threads === "on");
+  const setSetting = useStore((s) => s.setSetting);
+  const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
+  // Moving to another folder or searching again starts with every conversation folded.
+  useEffect(() => setOpened(new Set()), [folderId, query, only]);
+  const threadOf = (m: MessageSummary) => (m.threadKey ? `${m.accountId}:${m.threadKey}` : null);
+  const toggleThread = (key: string) =>
+    setOpened((seen) => {
+      const next = new Set(seen);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   // Refreshed whenever the list changes, so "Today" stays right overnight.
   const now = useMemo(() => new Date(), [items]);
   const focusedInbox = useStore((s) => s.settings.focused_inbox !== "off");
@@ -176,15 +231,19 @@ export function MessageList({ width }: { width: number }) {
   ];
 
   const groups = useMemo(() => {
-    if (query) return sections(items, (m) => String(new Date(m.date * 1000).getFullYear()));
+    // One row per conversation when folded, one row per message otherwise.
+    const rows = (list: MessageSummary[]): Conversation[] => (collapsed ? conversations(list) : list.map((m) => ({ head: m, members: [m] })));
+    if (query) return sections(rows(items), (r) => String(new Date(r.head.date * 1000).getFullYear()));
     return sections(
-      items.filter((m) => !m.pinned),
-      (m) => groupLabel(new Date(m.date * 1000), now),
+      rows(items.filter((m) => !m.pinned)),
+      (r) => groupLabel(new Date(r.head.date * 1000), now),
     );
-  }, [items, query, now]);
+  }, [items, query, now, collapsed]);
   // Pinned mail is shown first, whichever folder it is in.
-  const pins = pinned.filter((m) => only === "all" || (only === "unread" ? m.unread : m.flagged));
-  const shown = pins.length ? [{ label: tr("list.pinned"), items: pins }, ...groups] : groups;
+  const pins = (collapsed ? conversations(pinned) : pinned.map((m) => ({ head: m, members: [m] }))).filter(
+    (r) => only === "all" || (only === "unread" ? r.head.unread : r.head.flagged),
+  );
+  const shown: Section<Conversation>[] = pins.length ? [{ label: tr("list.pinned"), items: pins }, ...groups] : groups;
 
   // Drafts written here are listed above the server's Drafts folder of the same account.
   const drafts = useMemo(() => (!query && folder?.role === "drafts" ? allDrafts.filter((d) => d.accountId === folder.accountId) : []), [allDrafts, folder, query]);
@@ -233,6 +292,16 @@ export function MessageList({ width }: { width: number }) {
                 {name}
               </button>
             ))}
+            {/* Folding is a choice about this list, so the switch sits with the filters. */}
+            <button
+              type="button"
+              aria-pressed={collapsed}
+              title={tr("list.threadsHint")}
+              onClick={() => void setSetting("threads", collapsed ? "off" : "on")}
+              className={`ml-auto h-7 rounded-full px-3 text-[13px] ${collapsed ? "bg-soft text-brand" : "border border-edge text-ink2 hover:bg-hover"}`}
+            >
+              {tr("list.threads")}
+            </button>
           </div>
         )}
       </div>
@@ -257,9 +326,23 @@ export function MessageList({ width }: { width: number }) {
         {shown.map((g) => (
           <div key={g.label}>
             <div className="border-b border-edge px-4 pt-3 pb-2 text-xs text-ink3">{g.label}</div>
-            {g.items.map((m) => (
-              <Row key={m.id} m={m} now={now} query={query} onMenu={(x, y, msg) => setMenu({ x, y, m: msg })} />
-            ))}
+            {g.items.map((row) => {
+              const key = threadOf(row.head);
+              const expandable = row.members.length > 1 && key !== null;
+              const expanded = expandable && opened.has(key);
+              return (
+                <div key={row.head.id}>
+                  <Row
+                    m={row.head}
+                    now={now}
+                    query={query}
+                    onMenu={(x, y, msg) => setMenu({ x, y, m: msg })}
+                    thread={expandable ? { count: row.members.length, expanded, toggle: () => toggleThread(key) } : undefined}
+                  />
+                  {expanded && row.members.slice(1).map((m) => <Row key={m.id} m={m} now={now} query={query} onMenu={(x, y, msg) => setMenu({ x, y, m: msg })} nested />)}
+                </div>
+              );
+            })}
           </div>
         ))}
         {empty && (
