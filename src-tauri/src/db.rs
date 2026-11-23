@@ -204,6 +204,17 @@ pub fn set_folder_uid_validity(conn: &Connection, folder_id: i64, uid_validity: 
     Ok(())
 }
 
+/// The mailbox-wide mod-sequence the last sync saw (CONDSTORE, RFC 7162), or None
+/// when the server reports none and every flag has to be read again.
+pub fn folder_modseq(conn: &Connection, folder_id: i64) -> Result<Option<u64>> {
+    Ok(conn.query_row("SELECT highest_modseq FROM folders WHERE id = ?1", [folder_id], |r| r.get(0))?)
+}
+
+pub fn set_folder_modseq(conn: &Connection, folder_id: i64, modseq: Option<u64>) -> Result<()> {
+    conn.execute("UPDATE folders SET highest_modseq = ?2 WHERE id = ?1", params![folder_id, modseq])?;
+    Ok(())
+}
+
 pub fn delete_folder_messages(conn: &Connection, folder_id: i64) -> Result<()> {
     conn.execute("DELETE FROM messages WHERE id IN (SELECT message_id FROM message_folders WHERE folder_id = ?1)", [folder_id])?;
     Ok(())
@@ -1018,6 +1029,19 @@ mod tests {
         add_mail_checked_by(&conn, account, "mx.attacker.example", 100);
         learn_auth_server(&conn, account).unwrap();
         assert_eq!(auth_server(&conn, account).unwrap().as_deref(), Some("mx.google.com"));
+    }
+
+    #[test]
+    fn a_folder_remembers_the_modseq_of_its_last_sync() {
+        let conn = crate::store::open_in_memory().unwrap();
+        let account = insert_account(&conn, "ann@example.test", "Ann", "imap", &AccountSettings::default()).unwrap();
+        let folder = upsert_folder(&conn, account, "INBOX", "Inbox", "inbox").unwrap();
+        assert_eq!(folder_modseq(&conn, folder).unwrap(), None, "nothing read yet");
+        set_folder_modseq(&conn, folder, Some(4711)).unwrap();
+        assert_eq!(folder_modseq(&conn, folder).unwrap(), Some(4711));
+        // A server that renumbers a folder starts its change counter again too.
+        set_folder_modseq(&conn, folder, None).unwrap();
+        assert_eq!(folder_modseq(&conn, folder).unwrap(), None);
     }
 
     #[test]
