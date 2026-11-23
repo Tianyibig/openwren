@@ -554,6 +554,11 @@ export const MESSAGES: Record<string, { en: string; zh: string }> = {
   "rules.ranNoMatch": { en: "{checked} messages looked at; none matched.", zh: "查看了 {checked} 封邮件，没有匹配的。" },
   "rules.ranMatched": { en: "{checked} messages looked at; {matched} matched.", zh: "查看了 {checked} 封邮件，其中 {matched} 封匹配。" },
 
+  "list.threads": { en: "Conversations", zh: "按会话" },
+  "list.threadsHint": { en: "Fold the messages of one conversation into a single row", zh: "把同一会话的邮件折叠成一行" },
+  "list.expandThread": { en: "Show the messages in this conversation", zh: "展开这个会话" },
+  "list.foldThread": { en: "Fold this conversation", zh: "收起这个会话" },
+
   "outbox.title": { en: "Waiting to be sent", zh: "待发送" },
   "outbox.note": {
     en: "These messages are written but not on the server yet: either they are scheduled for later, or a send failed and they are waiting for another try.",
