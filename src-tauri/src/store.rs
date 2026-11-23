@@ -23,6 +23,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0008_stricter_sender_checks.sql"),
     include_str!("../migrations/0009_picked_files_time.sql"),
     include_str!("../migrations/0010_search_pairs.sql"),
+    include_str!("../migrations/0011_attachment_index.sql"),
 ];
 
 const PLAIN_HEADER: &[u8; 16] = b"SQLite format 3\0";

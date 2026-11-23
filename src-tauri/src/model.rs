@@ -206,6 +206,9 @@ pub struct MessageSummary {
     /// Which conversation the message belongs to, when it is known. Messages of one
     /// conversation share it, across folders.
     pub thread_key: Option<String>,
+    /// True when a search found this message inside one of its attachments rather than in
+    /// the mail itself.
+    pub attachment_hit: bool,
     /// Unix seconds; hidden from its folder until then.
     pub snoozed_until: Option<i64>,
     /// The receiving server's sender checks, such as "spf=pass;dkim=pass;dmarc=fail". None when not read yet.

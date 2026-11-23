@@ -245,6 +245,9 @@ pub struct AttachmentMeta {
     pub mime_type: String,
     pub size: i64,
     pub content_id: Option<String>,
+    /// The text inside the attachment, when it has any that can be read here. Kept so a
+    /// search can find a receipt by what it says rather than by its file name.
+    pub text: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -334,17 +337,18 @@ pub fn parse_body(raw: &[u8]) -> Body {
     let plain = msg.body_text(0).map(|t| t.to_string()).unwrap_or_default();
     let attachments = msg
         .attachments()
-        .map(|part| AttachmentMeta {
-            name: part.attachment_name().unwrap_or("attachment").to_string(),
-            mime_type: part
+        .map(|part| {
+            let mime_type = part
                 .content_type()
                 .map(|c| match &c.c_subtype {
                     Some(sub) => format!("{}/{}", c.c_type, sub),
                     None => c.c_type.to_string(),
                 })
-                .unwrap_or_else(|| "application/octet-stream".to_string()),
-            size: part.len() as i64,
-            content_id: part.content_id().map(str::to_string),
+                .unwrap_or_else(|| "application/octet-stream".to_string());
+            let name = part.attachment_name().unwrap_or("attachment").to_string();
+            // Only the attachments people read: an inline picture travels in the HTML instead.
+            let text = if part.content_id().is_some() { None } else { crate::attachtext::text(&mime_type, &name, part.contents()) };
+            AttachmentMeta { name, mime_type, size: part.len() as i64, content_id: part.content_id().map(str::to_string), text }
         })
         .collect();
     Body { preview: preview_of(&plain), html, plain, attachments }

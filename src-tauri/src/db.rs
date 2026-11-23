@@ -340,12 +340,27 @@ pub fn has_body(conn: &Connection, id: i64) -> Result<bool> {
 pub fn save_body(conn: &mut Connection, id: i64, body: &Body) -> Result<()> {
     let tx = conn.transaction()?;
     tx.execute("INSERT OR REPLACE INTO bodies (message_id, html, plain) VALUES (?1, ?2, ?3)", params![id, body.html, body.plain])?;
+    // The attachment rows go, and their text with them: a re-sync may bring a different set.
+    {
+        let mut stmt = tx.prepare("SELECT id FROM attachments WHERE message_id = ?1")?;
+        let gone: Vec<i64> = stmt.query_map([id], |r| r.get(0))?.collect::<rusqlite::Result<_>>()?;
+        drop(stmt);
+        for attachment in gone {
+            tx.execute("DELETE FROM attachment_index WHERE rowid = ?1", [attachment])?;
+        }
+    }
     tx.execute("DELETE FROM attachments WHERE message_id = ?1", [id])?;
     for a in &body.attachments {
         tx.execute(
             "INSERT INTO attachments (message_id, name, mime_type, size, content_id) VALUES (?1, ?2, ?3, ?4, ?5)",
             params![id, a.name, a.mime_type, a.size, a.content_id],
         )?;
+        // Indexed by the attachment's own row id, so a search can point at the message that
+        // carried it. The same pairs the message index uses, so one search string matches both.
+        if let Some(text) = &a.text {
+            let attachment_id = tx.last_insert_rowid();
+            tx.execute("INSERT INTO attachment_index (rowid, text) VALUES (?1, ?2)", params![attachment_id, cjk::expand(text)])?;
+        }
     }
     tx.execute(
         "UPDATE messages SET preview = ?2, has_attachment = ?3 WHERE id = ?1",
@@ -429,6 +444,8 @@ fn summary(r: &Row) -> rusqlite::Result<MessageSummary> {
         snoozed_until: r.get(17)?,
         auth: r.get(18)?,
         thread_key: r.get(19)?,
+        // Set by `search` once it knows; a list never guesses.
+        attachment_hit: false,
     })
 }
 
@@ -501,8 +518,25 @@ pub fn search(conn: &Connection, query: &str, filters: &SearchFilters, now: chro
         wheres.push(clause.replace('?', &format!("?{}", values.len())));
     }
     if let Some(fts) = &parsed.fts {
-        sql.push_str(" JOIN search_index s ON s.rowid = m.id");
-        bind(&mut values, &mut wheres, "search_index MATCH ?", Value::Text(fts.clone()));
+        // The mail itself, or any attachment it carried: a receipt is found by what it says.
+        // An EXISTS rather than a JOIN, so a match in either place returns the message once.
+        // The FTS tables are not aliased: `alias MATCH ?` is read as a column named after the
+        // alias, and only the table's own name carries the MATCH operator.
+        values.push(Value::Text(fts.clone()));
+        let mail = format!("EXISTS (SELECT 1 FROM search_index WHERE rowid = m.id AND search_index MATCH ?{})", values.len());
+        // The attachment index has one column, so it is searched with the free words alone:
+        // `from:x` names a column that index does not have.
+        match &parsed.text {
+            Some(text) => {
+                values.push(Value::Text(text.clone()));
+                wheres.push(format!(
+                    "({mail} OR EXISTS (SELECT 1 FROM attachment_index JOIN attachments att ON att.id = attachment_index.rowid
+                                        WHERE att.message_id = m.id AND attachment_index MATCH ?{}))",
+                    values.len()
+                ));
+            }
+            None => wheres.push(mail),
+        }
     }
     // A single character written without spaces is shorter than the pairs the index
     // holds, so it is looked for in the subject and in the body text instead.
@@ -541,6 +575,33 @@ pub fn search(conn: &Connection, query: &str, filters: &SearchFilters, now: chro
     sql.push_str(&format!(" WHERE {} ORDER BY m.date DESC LIMIT {limit}", wheres.join(" AND ")));
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt.query_map(rusqlite::params_from_iter(values), summary)?;
+    let mut messages = rows.collect::<rusqlite::Result<Vec<_>>>()?;
+    if let Some(text) = &parsed.text {
+        // Say which of them were found inside an attachment rather than in the mail itself,
+        // so a result can show why it is there.
+        let found = attachment_hits(conn, text, &messages.iter().map(|m| m.id).collect::<Vec<_>>())?;
+        for message in &mut messages {
+            message.attachment_hit = found.contains(&message.id);
+        }
+    }
+    Ok(messages)
+}
+
+/// Which of these messages are in the results because of what their attachments say.
+fn attachment_hits(conn: &Connection, fts: &str, ids: &[i64]) -> Result<std::collections::HashSet<i64>> {
+    if ids.is_empty() {
+        return Ok(std::collections::HashSet::new());
+    }
+    let list = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    // Not aliased: `alias MATCH ?` is read as a column name, so the table's own name is used.
+    let sql = format!(
+        "SELECT DISTINCT attachments.message_id FROM attachment_index JOIN attachments ON attachments.id = attachment_index.rowid
+          WHERE attachment_index MATCH ?1 AND attachments.message_id IN ({list})"
+    );
+    let mut values = vec![rusqlite::types::Value::Text(fts.to_string())];
+    values.extend(ids.iter().map(|id| rusqlite::types::Value::Integer(*id)));
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map(rusqlite::params_from_iter(values), |r| r.get(0))?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
@@ -1202,6 +1263,42 @@ mod tests {
         assert_eq!(found("票"), 1, "one character falls back to a text scan");
         assert_eq!(found("invoice"), 0);
         assert_eq!(found("发票 报销"), 0);
+    }
+
+    #[test]
+    fn a_receipt_is_found_by_what_is_inside_it() {
+        let mut conn = crate::store::open_in_memory().unwrap();
+        let account = insert_account(&conn, "ann@work.cn", "Ann", "imap", &AccountSettings::default()).unwrap();
+        let folder = upsert_folder(&conn, account, "INBOX", "Inbox", "inbox").unwrap();
+        let header = Header { from_name: "财务部".into(), from_address: "finance@supplier.cn".into(), subject: "本月对账单".into(), date: Some(1_700_000_000), ..Header::default() };
+        let id = insert_message(&conn, &NewMessage { account_id: account, folder_id: folder, uid: Some(1), header: &header, fallback_date: 0, size: 10, unread: true, flagged: false }).unwrap();
+        let attachment = crate::parse::AttachmentMeta {
+            name: "对账单.pdf".into(),
+            mime_type: "application/pdf".into(),
+            size: 4096,
+            content_id: None,
+            text: Some("增值税专用发票 金额合计 1200.00".into()),
+        };
+        let body = Body { html: None, plain: "见附件".into(), preview: "见附件".into(), attachments: vec![attachment] };
+        save_body(&mut conn, id, &body).unwrap();
+
+        let filters = SearchFilters { account_id: None, has_attachment: false, date: "any".into(), after: None, before: None };
+        // The word is nowhere in the mail itself: only the attachment says it.
+        assert!(!body.plain.contains("发票"));
+        let found = search(&conn, "增值税", &filters, chrono::Utc::now(), 50).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].id, id);
+        assert!(found[0].attachment_hit, "the result says where it was found");
+        // A word in the mail itself is not marked as an attachment hit.
+        let plain_hit = search(&conn, "附件", &filters, chrono::Utc::now(), 50).unwrap();
+        assert_eq!(plain_hit.len(), 1);
+        assert!(!plain_hit[0].attachment_hit);
+
+        // Re-saving the body replaces the text rather than adding a second copy.
+        let changed = crate::parse::AttachmentMeta { name: "对账单.pdf".into(), mime_type: "application/pdf".into(), size: 4096, content_id: None, text: Some("快递单号 7788".into()) };
+        save_body(&mut conn, id, &Body { attachments: vec![changed], ..Body::default() }).unwrap();
+        assert_eq!(search(&conn, "增值税", &filters, chrono::Utc::now(), 50).unwrap().len(), 0, "the old text is gone");
+        assert_eq!(search(&conn, "快递单号", &filters, chrono::Utc::now(), 50).unwrap().len(), 1);
     }
 
     #[test]
