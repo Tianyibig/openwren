@@ -7,7 +7,7 @@
 
 use crate::db::{self, Db};
 use crate::error::Result;
-use crate::imap::Session;
+use crate::imap::{self, Session};
 use crate::model::DraftContent;
 use crate::smtp;
 
@@ -61,9 +61,9 @@ pub async fn upload(db: &Db, session: &mut Session, draft_id: i64) -> Result<()>
 
 /// Remove the copies of a draft from the server; `keep_newest` leaves the one just uploaded.
 pub async fn remove_copies(session: &mut Session, path: &str, message_id: &str, keep_newest: bool) -> Result<()> {
-    session.select(path).await?;
+    imap::select(session, path).await?;
     let id = message_id.replace(['"', '\\', '\r', '\n'], "");
-    let mut uids: Vec<u32> = session.uid_search(format!("HEADER Message-ID \"{id}\"")).await?.into_iter().collect();
+    let mut uids: Vec<u32> = imap::search(session, &format!("HEADER Message-ID \"{id}\"")).await?.into_iter().collect();
     uids.sort_unstable();
     if keep_newest {
         uids.pop();

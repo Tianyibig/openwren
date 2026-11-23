@@ -66,7 +66,7 @@ pub async fn sync_headers(db: &Db, session: &mut Session, account_id: i64, notif
 }
 
 async fn sync_folder(db: &Db, session: &mut Session, account_id: i64, folder_id: i64, path: &str, name: &str, notifier: &dyn Notifier) -> Result<()> {
-    let mailbox = session.select(path).await?;
+    let mailbox = imap::select(session, path).await?;
     let is_inbox = path.eq_ignore_ascii_case("INBOX");
     let blocked = if is_inbox { crate::blocked::list(&db::lock(db))? } else { Vec::new() };
     let mut to_junk: Vec<i64> = Vec::new();
@@ -107,7 +107,7 @@ async fn sync_folder(db: &Db, session: &mut Session, account_id: i64, folder_id:
     let new_uids: Vec<u32> = if unchanged {
         Vec::new()
     } else {
-        let all = if mailbox.exists == 0 { HashSet::new() } else { session.uid_search("ALL").await? };
+        let all = if mailbox.exists == 0 { HashSet::new() } else { imap::search(session, "ALL").await? };
         gone = local.difference(&all).copied().collect();
         all.difference(&local).copied().collect()
     };
@@ -226,7 +226,7 @@ async fn sync_folder(db: &Db, session: &mut Session, account_id: i64, folder_id:
 }
 
 async fn move_on_server(session: &mut Session, src: &str, uid: u32, dst: &str) -> Result<()> {
-    session.select(src).await?;
+    imap::select(session, src).await?;
     if session.uid_mv(uid.to_string(), dst).await.is_ok() {
         return Ok(());
     }
@@ -249,8 +249,8 @@ pub async fn remove_on_server(session: &mut Session, folder: &str, uid: u32) -> 
 /// Mark every unread message of a folder as read on the server.
 async fn mark_all_read(session: &mut Session, folder: &str) -> Result<()> {
     use futures::TryStreamExt;
-    session.select(folder).await?;
-    let mut unread: Vec<u32> = session.uid_search("UNSEEN").await?.into_iter().collect();
+    imap::select(session, folder).await?;
+    let mut unread: Vec<u32> = imap::search(session, "UNSEEN").await?.into_iter().collect();
     unread.sort_unstable();
     for chunk in unread.chunks(500) {
         let _: Vec<_> = session.uid_store(imap::uid_set(chunk), "+FLAGS.SILENT (\\Seen)").await?.try_collect().await?;
@@ -281,6 +281,9 @@ pub async fn run_ops(db: &Db, session: &mut Session, account_id: i64) -> Result<
                 db::remove_op(&conn, op.id)?;
                 ran += 1;
             }
+            // The session is not usable any more: stop, so the operation is retried on a
+            // new connection instead of being marked failed against a dead one.
+            Err(e) if e.lost() => return Err(e),
             // After repeated failures give up, so one bad operation cannot block the rest forever.
             Err(_) if op.attempts >= 5 => {
                 db::remove_op(&conn, op.id)?;
@@ -293,7 +296,7 @@ pub async fn run_ops(db: &Db, session: &mut Session, account_id: i64) -> Result<
 
 /// Download and store the bodies of the given (message id, uid) pairs in one folder.
 pub async fn fetch_bodies(db: &Db, session: &mut Session, folder_path: &str, items: &[(i64, u32)]) -> Result<()> {
-    session.select(folder_path).await?;
+    imap::select(session, folder_path).await?;
     let uids: Vec<u32> = items.iter().map(|i| i.1).collect();
     let fetches = imap::fetch(session, &imap::uid_set(&uids), "(UID BODY.PEEK[])").await?;
     let bodies: HashMap<u32, parse::Body> =
@@ -316,7 +319,7 @@ pub async fn sync_header_info(db: &Db, session: &mut Session, account_id: i64, l
         by_folder.entry(path.as_str()).or_default().push((*id, *uid));
     }
     for (path, items) in by_folder {
-        session.select(path).await?;
+        imap::select(session, path).await?;
         for chunk in items.chunks(HEADER_CHUNK) {
             let uids: Vec<u32> = chunk.iter().map(|i| i.1).collect();
             let fetched = imap::fetch(session, &imap::uid_set(&uids), "(UID BODY.PEEK[HEADER])").await?;
@@ -367,7 +370,7 @@ pub async fn sync_bodies(db: &Db, session: &mut Session, account_id: i64, limit:
 /// Tell the server about a flag change made here.
 pub async fn store_flag(session: &mut Session, folder_path: &str, uid: u32, flag: &str, on: bool) -> Result<()> {
     use futures::TryStreamExt;
-    session.select(folder_path).await?;
+    imap::select(session, folder_path).await?;
     let command = format!("{}FLAGS.SILENT ({flag})", if on { "+" } else { "-" });
     let _: Vec<_> = session.uid_store(uid.to_string(), command).await?.try_collect().await?;
     Ok(())
