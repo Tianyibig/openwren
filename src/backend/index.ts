@@ -33,6 +33,15 @@ export interface AppInfo {
   systemFontLight: boolean;
 }
 
+/** Where the mail database is kept. */
+export interface StorageInfo {
+  dir: string;
+  /** The folder used when no other one has been chosen. */
+  defaultDir: string;
+  /** A folder the mail is to be moved to when OpenWren next starts, if one was chosen. */
+  pending: string | null;
+}
+
 /** A newer version of OpenWren, found by the daily check. */
 export interface UpdateAvailable {
   version: string;
@@ -142,6 +151,13 @@ export interface Backend {
   getSetting(key: string): Promise<string | null>;
   setSetting(key: string, value: string): Promise<void>;
 
+  /** Where the mail database is kept today, and where it is to go next time. */
+  storageInfo(): Promise<StorageInfo>;
+  /** Asks for a folder, then plans moving the mail there at the next start. Null when cancelled. */
+  chooseStorageDir(): Promise<string | null>;
+  /** Starts OpenWren again, so a chosen folder takes effect. */
+  restartNow(): Promise<void>;
+
   openLink(url: string): Promise<void>;
   /** Folders or messages of an account changed. */
   onChanged(listener: (accountId: number) => void): Unsubscribe;
@@ -221,6 +237,10 @@ const tauriBackend: Backend = {
   markReady: () => invoke("mark_ready"),
   getSetting: (key) => invoke("get_setting", { key }),
   setSetting: (key, value) => invoke("set_setting", { key, value }),
+
+  storageInfo: () => invoke("storage_info"),
+  chooseStorageDir: () => invoke("choose_storage_dir"),
+  restartNow: () => invoke("restart_now"),
 
   openLink: (url) => invoke("open_link", { url }),
   onChanged: (listener) => subscribe("mail-changed", listener),
