@@ -17,11 +17,12 @@ import logo from "../../src-tauri/icons/128x128@2x.png";
 import { backend } from "../backend";
 import { PRIVACY_PAGE, REPOSITORY, SPONSOR_PAGE } from "../lib/links";
 import { TEXT_SIZES } from "../lib/font";
+import { useT } from "../lib/useTranslate";
 import { useStore } from "../store";
 import { preferAccountKind } from "./AddAccount";
 import { MOD } from "../lib/keys";
 
-const STEPS = ["Welcome", "Account", "Look", "Ready"] as const;
+const STEPS = ["onboard.steps.welcome", "onboard.steps.account", "onboard.steps.look", "onboard.steps.ready"] as const;
 
 /** The filled accent button used only here: the one obvious next step on each screen. */
 function Next({ children, onClick, disabled }: { children: React.ReactNode; onClick: () => void; disabled?: boolean }) {
@@ -68,6 +69,7 @@ function Choice<T extends string>({ label, value, options, onChange }: { label: 
 
 /** A small picture of the app for the right-hand side: three messages, one of them flagged as suspicious. */
 function Preview() {
+  const tr = useT();
   const row = "flex items-center gap-3 rounded-2xl bg-card px-4 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.06)]";
   const avatar = "flex size-9 flex-none items-center justify-center rounded-full text-xs";
   return (
@@ -80,7 +82,7 @@ function Preview() {
           <div className="flex items-center gap-2 text-ink">
             Mona Kane <span className="size-[7px] rounded-full bg-dot" /> <span className="ml-auto text-xs text-brand">9:41</span>
           </div>
-          <div className="truncate text-ink2">Event announcement content</div>
+          <div className="truncate text-ink2">{tr("onboard.preview.subject1")}</div>
         </div>
       </div>
       <div className={`${row} translate-x-6`}>
@@ -88,7 +90,7 @@ function Preview() {
         <div className="min-w-0 flex-1">
           <div className="text-ink">PayPal Security</div>
           <div className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-warn px-2.5 py-0.5 text-xs text-on-warn">
-            <IconShieldCheck size={14} /> Sender not confirmed
+            <IconShieldCheck size={14} /> {tr("reader.reason.notConfirmed")}
           </div>
         </div>
       </div>
@@ -97,9 +99,9 @@ function Preview() {
           <IconPaperclip size={17} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-ink">Weekly digest</div>
+          <div className="text-ink">{tr("onboard.preview.subject2")}</div>
           <div className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-soft px-2.5 py-0.5 text-xs text-brand">
-            <IconEyeOff size={14} /> 2 trackers removed
+            <IconEyeOff size={14} /> {tr("reader.trackerMany", { n: 2 })}
           </div>
         </div>
       </div>
@@ -112,6 +114,7 @@ export function Onboarding() {
   const accounts = useStore((s) => s.accounts);
   const settings = useStore((s) => s.settings);
   const { setSetting, setDialog, setWelcome } = useStore.getState();
+  const tr = useT();
   // Nothing is chosen in advance: the count is sent only after "Count this copy".
   const counted = settings.usage_stats === "on" ? true : settings.usage_stats === "off" ? false : null;
   const [step, setStep] = useState(0);
@@ -134,13 +137,13 @@ export function Onboarding() {
   const card = "flex w-full items-center gap-4 rounded-2xl border border-edge px-5 py-4 text-left hover:border-line hover:bg-hover";
 
   return (
-    <div className="absolute inset-0 z-[5] flex bg-card" role="dialog" aria-modal="true" aria-label="Welcome to OpenWren">
+    <div className="absolute inset-0 z-[5] flex bg-card" role="dialog" aria-modal="true" aria-label={tr("onboard.aria")}>
       <div className="flex min-w-0 flex-1 flex-col px-14 py-10">
         <div className="flex items-center gap-2.5">
           <img src={logo} alt="" className="size-8" />
           <span className="text-lg text-ink">OpenWren</span>
           <button type="button" onClick={finish} className="ml-auto rounded-lg px-3 py-1.5 text-ink3 hover:bg-hover hover:text-ink">
-            Skip
+            {tr("onboard.skip")}
           </button>
         </div>
 
@@ -149,22 +152,22 @@ export function Onboarding() {
           <div className="my-auto max-w-[460px]">
             {step === 0 && (
               <>
-                <h1 className="text-[34px] leading-tight text-ink">Mail that stays yours</h1>
-                <p className="mt-3 text-[17px] text-ink2">OpenWren is an open-source mail app for Gmail and any other mail account. It keeps your mail on this computer and tells no one what you read.</p>
+                <h1 className="text-[34px] leading-tight text-ink">{tr("onboard.welcome.title")}</h1>
+                <p className="mt-3 text-[17px] text-ink2">{tr("onboard.welcome.text")}</p>
                 <div className="mt-8 flex flex-col gap-5">
-                  <Point icon={<IconLock size={20} />} title="Private by design" text="Your mail is stored encrypted on this computer. No tracking, no ads." />
-                  <Point icon={<IconShieldCheck size={20} />} title="Watches your back" text="Trackers are removed and suspicious messages are flagged before you click." />
-                  <Point icon={<IconMail size={20} />} title="All your mail in one place" text="Several accounts, one inbox, and search that reaches back years." />
+                  <Point icon={<IconLock size={20} />} title={tr("onboard.welcome.privateTitle")} text={tr("onboard.welcome.privateText")} />
+                  <Point icon={<IconShieldCheck size={20} />} title={tr("onboard.welcome.guardTitle")} text={tr("onboard.welcome.guardText")} />
+                  <Point icon={<IconMail size={20} />} title={tr("onboard.welcome.onePlaceTitle")} text={tr("onboard.welcome.onePlaceText")} />
                   <div className="flex gap-3.5">
                     <div className="flex size-10 flex-none items-center justify-center rounded-xl bg-soft text-brand">
                       <IconCode size={20} />
                     </div>
                     <div>
-                      <div className="text-ink">Free and open source</div>
+                      <div className="text-ink">{tr("onboard.welcome.freeTitle")}</div>
                       <div className="text-ink2">
-                        No price, no ads. Every line of code is public, so you can check it yourself.{" "}
+                        {tr("onboard.welcome.freeText")}{" "}
                         <button type="button" className="text-brand underline" onClick={() => void backend.openLink(REPOSITORY)}>
-                          View the code
+                          {tr("onboard.welcome.viewCode")}
                         </button>
                       </div>
                     </div>
@@ -175,11 +178,11 @@ export function Onboarding() {
 
             {step === 1 && (
               <>
-                <h1 className="text-[30px] leading-tight text-ink">Add your mail account</h1>
-                <p className="mt-3 text-ink2">Your password or sign-in is kept in your system's password store, never in OpenWren's files.</p>
+                <h1 className="text-[30px] leading-tight text-ink">{tr("onboard.account.title")}</h1>
+                <p className="mt-3 text-ink2">{tr("onboard.account.note")}</p>
                 {accounts.length > 0 && (
                   <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-soft px-3 py-1 text-brand">
-                    <IconCheck size={16} /> {accounts.length === 1 ? accounts[0].address : `${accounts.length} accounts`} added
+                    <IconCheck size={16} /> {tr("onboard.account.added", { what: accounts.length === 1 ? accounts[0].address : tr("onboard.account.many", { n: accounts.length }) })}
                   </p>
                 )}
                 <div className="mt-6 flex flex-col gap-3">
@@ -188,8 +191,8 @@ export function Onboarding() {
                       <IconBrandGoogle size={22} />
                     </span>
                     <span>
-                      <span className="block text-ink">Gmail</span>
-                      <span className="block text-ink2">With an app password from your Google account</span>
+                      <span className="block text-ink">{tr("onboard.account.gmail")}</span>
+                      <span className="block text-ink2">{tr("onboard.account.gmailText")}</span>
                     </span>
                     <IconArrowRight size={18} className="ml-auto text-ink3" />
                   </button>
@@ -198,8 +201,8 @@ export function Onboarding() {
                       <IconMail size={22} />
                     </span>
                     <span>
-                      <span className="block text-ink">Other mail account</span>
-                      <span className="block text-ink2">Any provider, with your address and password (IMAP)</span>
+                      <span className="block text-ink">{tr("onboard.account.other")}</span>
+                      <span className="block text-ink2">{tr("onboard.account.otherText")}</span>
                     </span>
                     <IconArrowRight size={18} className="ml-auto text-ink3" />
                   </button>
@@ -209,22 +212,22 @@ export function Onboarding() {
 
             {step === 2 && (
               <>
-                <h1 className="text-[30px] leading-tight text-ink">Make it yours</h1>
-                <p className="mt-3 text-ink2">You can change all of this later in Settings.</p>
+                <h1 className="text-[30px] leading-tight text-ink">{tr("onboard.look.title")}</h1>
+                <p className="mt-3 text-ink2">{tr("onboard.look.note")}</p>
                 <div className="mt-7 flex flex-col gap-6">
                   <Choice
-                    label="Theme"
+                    label={tr("onboard.look.theme")}
                     value={(settings.theme ?? "system") as "system" | "light" | "dark"}
                     onChange={(v) => void setSetting("theme", v)}
                     options={[
-                      ["system", "Match my computer"],
-                      ["light", "Light"],
-                      ["dark", "Dark"],
+                      ["system", tr("onboard.look.themeSystem")],
+                      ["light", tr("appearance.themeLight")],
+                      ["dark", tr("appearance.themeDark")],
                     ]}
                   />
-                  <Choice label="Text size" value={settings.text_size ?? "15"} onChange={(v) => void setSetting("text_size", v)} options={TEXT_SIZES} />
+                  <Choice label={tr("onboard.look.textSize")} value={settings.text_size ?? "15"} onChange={(v) => void setSetting("text_size", v)} options={TEXT_SIZES} />
                   <Choice
-                    label="Time"
+                    label={tr("onboard.look.time")}
                     value={settings.time_format === "12" ? "12" : "24"}
                     onChange={(v) => void setSetting("time_format", v)}
                     options={[
@@ -240,12 +243,10 @@ export function Onboarding() {
                     </div>
                     <div className="min-w-0">
                       <div id="usage-count" className="text-ink">
-                        Let me know you're here
+                        {tr("onboard.usage.title")}
                       </div>
-                      <div className="mt-1 text-[13px] text-ink2">
-                        OpenWren is free, and I build it in my spare time. I can't see who uses it, by design. If you say yes, your copy sends one anonymous signal a day, and I see a number go up by one. That number is what keeps me maintaining it.
-                      </div>
-                      <div className="mt-1.5 text-[13px] text-ink3">No name, no address, no mail. Vincent, maintainer</div>
+                      <div className="mt-1 text-[13px] text-ink2">{tr("onboard.usage.text")}</div>
+                      <div className="mt-1.5 text-[13px] text-ink3">{tr("onboard.usage.signature")}</div>
                     </div>
                   </div>
                   <div className="mt-3.5 flex flex-wrap items-center gap-2" role="radiogroup" aria-labelledby="usage-count">
@@ -256,7 +257,7 @@ export function Onboarding() {
                       onClick={() => void setSetting("usage_stats", "on")}
                       className={`h-9 rounded-lg border px-3.5 text-[14px] ${counted === true ? "border-brand bg-brand/10 text-brand" : "border-edge text-ink hover:bg-hover"}`}
                     >
-                      Count me in
+                      {tr("onboard.usage.yes")}
                     </button>
                     <button
                       type="button"
@@ -265,28 +266,28 @@ export function Onboarding() {
                       onClick={() => void setSetting("usage_stats", "off")}
                       className={`h-9 rounded-lg border px-3.5 text-[14px] ${counted === false ? "border-brand bg-brand/10 text-brand" : "border-edge text-ink hover:bg-hover"}`}
                     >
-                      No, thanks
+                      {tr("onboard.usage.no")}
                     </button>
                     <button type="button" aria-expanded={sentShown} aria-controls="usage-sent" onClick={() => setSentShown(!sentShown)} className="ml-auto rounded-md px-1.5 py-1 text-[13px] text-brand hover:underline">
-                      {sentShown ? "Hide what is sent" : "See what is sent"}
+                      {sentShown ? tr("onboard.usage.hide") : tr("onboard.usage.show")}
                     </button>
                   </div>
                   {sentShown && (
                     <div id="usage-sent" className="mt-3 rounded-xl bg-canvas px-3.5 py-3">
-                      <div className="text-xs text-ink3">Everything the request contains</div>
+                      <div className="text-xs text-ink3">{tr("onboard.usage.contains")}</div>
                       <div className="mt-2 flex flex-wrap gap-1.5">
-                        {["The app version", "The package type, such as deb", "The system, such as ubuntu-24", "The processor type", "The month of installation", "If it is the first request of the day, week or month, or ever"].map((fact) => (
-                          <span key={fact} className="rounded-full border border-edge bg-card px-2.5 py-0.5 text-xs text-ink2">
-                            {fact}
+                        {["onboard.usage.fact1", "onboard.usage.fact2", "onboard.usage.fact3", "onboard.usage.fact4", "onboard.usage.fact5", "onboard.usage.fact6"].map((key) => (
+                          <span key={key} className="rounded-full border border-edge bg-card px-2.5 py-0.5 text-xs text-ink2">
+                            {tr(key)}
                           </span>
                         ))}
                       </div>
                       <div className="mt-2.5 flex items-center gap-1.5 text-xs text-ink3">
                         <IconLock size={14} className="flex-none" />
                         <span>
-                          Never your name, address, mail or any identifier.{" "}
+                          {tr("onboard.usage.never")}{" "}
                           <button type="button" className="text-brand hover:underline" onClick={() => void backend.openLink(PRIVACY_PAGE)}>
-                            Privacy page
+                            {tr("onboard.usage.privacy")}
                           </button>
                         </span>
                       </div>
@@ -301,15 +302,13 @@ export function Onboarding() {
                 <div className="mb-5 flex size-14 items-center justify-center rounded-2xl bg-soft text-brand">
                   <IconCheck size={30} />
                 </div>
-                <h1 className="text-[30px] leading-tight text-ink">You're all set</h1>
-                <p className="mt-3 text-ink2">
-                  {accounts.length > 0 ? "Your mail is downloading in the background. The newest messages appear first; older ones follow." : "Add an account any time from Settings, under Accounts."}
-                </p>
+                <h1 className="text-[30px] leading-tight text-ink">{tr("onboard.ready.title")}</h1>
+                <p className="mt-3 text-ink2">{accounts.length > 0 ? tr("onboard.ready.downloading") : tr("onboard.ready.noAccount")}</p>
                 <div className="mt-7 flex flex-col gap-2.5 text-ink2">
                   {[
-                    [`${MOD} K`, "Search all your mail"],
-                    [`${MOD} N`, "Write a new message"],
-                    ["Right-click", "Block a sender, snooze, move or view the source"],
+                    [`${MOD} K`, tr("onboard.ready.search")],
+                    [`${MOD} N`, tr("onboard.ready.compose")],
+                    [tr("onboard.ready.rightClick"), tr("onboard.ready.rightClickWhat")],
                   ].map(([keys, what]) => (
                     <div key={keys} className="flex items-center gap-3">
                       <kbd className="min-w-[92px] rounded-lg border border-edge bg-canvas px-2.5 py-1 text-center text-[13px] text-ink">{keys}</kbd>
@@ -322,16 +321,14 @@ export function Onboarding() {
                     <IconHeart size={20} />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-ink">OpenWren is free. Sponsors keep it that way.</div>
-                    <div className="mt-1 text-[13px] text-ink2">
-                      No ads and no data to sell. If OpenWren becomes your daily mail app, a few dollars a month pays for the time to fix bugs and for signed installers.
-                    </div>
+                    <div className="text-ink">{tr("sponsor.title")}</div>
+                    <div className="mt-1 text-[13px] text-ink2">{tr("onboard.ready.sponsorText")}</div>
                     <button
                       type="button"
                       onClick={() => void backend.openLink(SPONSOR_PAGE)}
                       className="mt-3 inline-flex h-9 items-center gap-2 rounded-lg border border-edge px-3.5 text-[14px] text-ink hover:bg-hover"
                     >
-                      <IconHeart size={16} className="text-danger" /> Sponsor on GitHub
+                      <IconHeart size={16} className="text-danger" /> {tr("sponsor.button")}
                     </button>
                   </div>
                 </div>
@@ -343,38 +340,38 @@ export function Onboarding() {
         <div className="flex flex-none items-center gap-4">
           {step > 0 && (
             <button type="button" onClick={() => setStep(step - 1)} className="inline-flex h-11 items-center gap-2 rounded-xl px-3 text-ink2 hover:bg-hover">
-              <IconArrowLeft size={18} /> Back
+              <IconArrowLeft size={18} /> {tr("onboard.back")}
             </button>
           )}
           {step === 0 && (
             <Next onClick={() => setStep(1)}>
-              Get started <IconArrowRight size={18} />
+              {tr("onboard.start")} <IconArrowRight size={18} />
             </Next>
           )}
           {step === 1 &&
             (accounts.length > 0 ? (
               <Next onClick={() => setStep(2)}>
-                Continue <IconArrowRight size={18} />
+                {tr("onboard.continue")} <IconArrowRight size={18} />
               </Next>
             ) : (
               <button type="button" onClick={() => setStep(2)} className="h-11 rounded-xl px-3 text-ink2 hover:bg-hover">
-                Do this later
+                {tr("onboard.later")}
               </button>
             ))}
           {step === 2 && (
             <>
               <Next onClick={() => setStep(3)} disabled={counted === null}>
-                Continue <IconArrowRight size={18} />
+                {tr("onboard.continue")} <IconArrowRight size={18} />
               </Next>
               {counted === null && (
                 <span className="whitespace-nowrap text-[13px] text-ink3" role="status">
-                  Answer above to continue
+                  {tr("onboard.usage.answer")}
                 </span>
               )}
             </>
           )}
-          {step === 3 && <Next onClick={finish}>Open my inbox</Next>}
-          <div className="ml-auto flex items-center gap-2" aria-label={`Step ${step + 1} of ${STEPS.length}: ${STEPS[step]}`}>
+          {step === 3 && <Next onClick={finish}>{tr("onboard.openInbox")}</Next>}
+          <div className="ml-auto flex items-center gap-2" aria-label={tr("onboard.step", { step: step + 1, total: STEPS.length, name: tr(STEPS[step]) })}>
             {STEPS.map((name, i) => (
               <span key={name} className={`h-1.5 rounded-full ${i === step ? "w-6 bg-brand" : "w-1.5 bg-edge"}`} />
             ))}
