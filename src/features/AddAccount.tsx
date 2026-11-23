@@ -3,6 +3,7 @@ import { useState } from "react";
 import { backend, errorText } from "../backend";
 import { Button, Chip, IconButton, fieldBox, fieldCaption } from "../components/ui";
 import { PROVIDERS, providerById, providerForAddress, type Provider } from "../lib/providers";
+import { useT } from "../lib/useTranslate";
 import { useStore } from "../store";
 import type { Security, ServerSettings } from "../types";
 
@@ -28,17 +29,18 @@ interface Server {
 }
 
 function ServerRow({ id, title, optional, protocol, value, onChange }: { id: string; title: string; optional?: boolean; protocol: "imap" | "smtp"; value: Server; onChange: (s: Server) => void }) {
+  const tr = useT();
   return (
     <>
       <label className={`${fieldCaption} mt-3`} htmlFor={id}>
         {title}
-        {optional && <span className="text-ink3"> (optional, needed to send mail)</span>}
+        {optional && <span className="text-ink3"> {tr("addAccount.neededToSend")}</span>}
       </label>
       <div className="grid grid-cols-[1fr_80px_150px] gap-2">
         <input id={id} value={value.host} placeholder={`${protocol}.company.com`} className={fieldBox} autoComplete="off" onChange={(e) => onChange({ ...value, host: e.target.value, edited: true })} />
-        <input aria-label={`${title} port`} inputMode="numeric" value={value.port} onChange={(e) => onChange({ ...value, port: e.target.value })} className={fieldBox} />
+        <input aria-label={tr("addAccount.port", { title })} inputMode="numeric" value={value.port} onChange={(e) => onChange({ ...value, port: e.target.value })} className={fieldBox} />
         <select
-          aria-label={`${title} encryption`}
+          aria-label={tr("addAccount.encryption", { title })}
           value={value.security}
           className={fieldBox}
           onChange={(e) => {
@@ -50,7 +52,7 @@ function ServerRow({ id, title, optional, protocol, value, onChange }: { id: str
         >
           <option value="tls">TLS</option>
           <option value="starttls">STARTTLS</option>
-          <option value="none">None (not secure)</option>
+          <option value="none">{tr("addAccount.notSecure")}</option>
         </select>
       </div>
     </>
@@ -81,6 +83,7 @@ export function AddAccount() {
   const setDialog = useStore((s) => s.setDialog);
   const refresh = useStore((s) => s.refresh);
   const hasGoogleClient = useStore((s) => (s.settings.google_client_id ?? "").trim() !== "");
+  const tr = useT();
   const [kind, setKind] = useState<Kind>(() => {
     const start = preferred ?? remembered?.kind ?? "imap";
     preferred = null;
@@ -150,12 +153,12 @@ export function AddAccount() {
     e.preventDefault();
     if (busy) return;
     const user = address.trim();
-    if (!user.includes("@")) return setError("Enter a full email address.");
-    if (kind === "google" && !oauth && !password.trim()) return setError("Paste the app password you created in your Google account.");
+    if (!user.includes("@")) return setError(tr("addAccount.fullAddress"));
+    if (kind === "google" && !oauth && !password.trim()) return setError(tr("addAccount.googleNeedsCode"));
     if (kind !== "google") {
-      if (!password) return setError(provider?.code ? "Paste the authorisation code from your mail provider." : "Enter the password for this account.");
-      if (!incoming.host.trim()) return setError("Enter the incoming mail server.");
-      if (!validPort(incoming) || (outgoing.host.trim() && !validPort(outgoing))) return setError("Enter a port between 1 and 65535.");
+      if (!password) return setError(provider?.code ? tr("addAccount.enterCode") : tr("addAccount.enterPassword"));
+      if (!incoming.host.trim()) return setError(tr("addAccount.enterIncoming"));
+      if (!validPort(incoming) || (outgoing.host.trim() && !validPort(outgoing))) return setError(tr("addAccount.enterPort"));
     }
     setError("");
     setBusy(true);
@@ -207,14 +210,14 @@ export function AddAccount() {
       >
         <div className="mb-3 flex items-center">
           <h2 id="add-account-title" className="text-lg font-semibold">
-            Add account
+            {tr("addAccount.title")}
           </h2>
-          <IconButton label="Close" className="ml-auto" onClick={close}>
+          <IconButton label={tr("addAccount.close")} className="ml-auto" onClick={close}>
             <IconX size={20} />
           </IconButton>
         </div>
 
-        <div className="mb-3 flex gap-2" role="radiogroup" aria-label="Account type">
+        <div className="mb-3 flex gap-2" role="radiogroup" aria-label={tr("addAccount.kind")}>
           <Chip on={kind === "google"} onClick={() => changeKind("google")}>
             Google
           </Chip>
@@ -224,23 +227,23 @@ export function AddAccount() {
         </div>
 
         <label className={fieldCaption} htmlFor="aa-address">
-          Email address
+          {tr("addAccount.address")}
         </label>
         <input id="aa-address" type="email" autoFocus autoComplete="off" value={address} placeholder="name@company.com" className={fieldBox} onChange={(e) => changeAddress(e.target.value)} />
 
         {kind !== "google" && (
           <>
             <label className={`${fieldCaption} mt-3`} htmlFor="aa-provider">
-              Mail provider <span className="text-ink3">(fills in its servers)</span>
+              {tr("addAccount.provider")} <span className="text-ink3">{tr("addAccount.providerHint")}</span>
             </label>
             <select id="aa-provider" className={fieldBox} value={override ?? "address"} onChange={(e) => chooseProvider(e.target.value)}>
-              <option value="address">Match the address automatically</option>
+              <option value="address">{tr("addAccount.matchAddress")}</option>
               {PROVIDERS.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>
               ))}
-              <option value="">Set the servers myself</option>
+              <option value="">{tr("addAccount.setMyself")}</option>
             </select>
             {setup && (
               <div className="mt-3 rounded-[10px] bg-canvas px-3.5 py-3 text-[13px] text-ink2">
@@ -264,14 +267,14 @@ export function AddAccount() {
           {/* Gmail's password field sits below its instructions instead. */}
           <div>
             <label className={fieldCaption} htmlFor="aa-name">
-              Your name <span className="text-ink3">(optional)</span>
+              {tr("addAccount.name")} <span className="text-ink3">{tr("addAccount.optional")}</span>
             </label>
             <input id="aa-name" value={name} onChange={(e) => setName(e.target.value)} className={fieldBox} autoComplete="off" />
           </div>
           {kind !== "google" && (
             <div>
               <label className={fieldCaption} htmlFor="aa-password">
-                {provider?.code ? "Authorisation code" : "Password"}
+                {provider?.code ? tr("addAccount.code") : tr("addAccount.password")}
               </label>
               <input id="aa-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={fieldBox} autoComplete="off" />
             </div>
@@ -281,53 +284,54 @@ export function AddAccount() {
         {kind === "google" && !oauth && (
           <>
             <div className="mt-3 rounded-[10px] bg-canvas px-3.5 py-3 text-[13px] text-ink2">
-              <div className="mb-1.5 text-ink">Gmail needs an app password</div>
+              <div className="mb-1.5 text-ink">{tr("addAccount.gmailTitle")}</div>
               <ol className="list-decimal space-y-1 pl-5">
-                <li>Turn on 2-step verification in your Google account, if it is not on yet.</li>
+                <li>{tr("addAccount.gmailStep1")}</li>
                 <li>
-                  Create an app password named "OpenWren".{" "}
+                  {tr("addAccount.gmailStep2")}{" "}
                   <button type="button" className="text-brand underline" onClick={() => void backend.openLink("https://myaccount.google.com/apppasswords")}>
-                    Open Google's app passwords page
+                    {tr("addAccount.openAppPasswords")}
                   </button>
                 </li>
-                <li>Paste the 16 letters below. Your normal Google password does not work here.</li>
+                <li>{tr("addAccount.gmailStep3")}</li>
               </ol>
             </div>
             <label className={`${fieldCaption} mt-3`} htmlFor="aa-app-password">
-              App password
+              {tr("addAccount.appPassword")}
             </label>
             <input id="aa-app-password" type="password" value={password} placeholder="abcd efgh ijkl mnop" onChange={(e) => setPassword(e.target.value)} className={fieldBox} autoComplete="off" />
             <p className="mt-2 text-xs text-ink3">
-              It is stored in your system's password store. You can remove it at any time in your Google account.{" "}
+              {tr("addAccount.appPasswordNote")}{" "}
               <button type="button" className="underline hover:text-ink" onClick={() => (setGoogleWay("oauth"), setError(""))}>
-                Advanced: sign in with Google instead
+                {tr("addAccount.useGoogleSignIn")}
               </button>
             </p>
           </>
         )}
         {oauth && (
           <p className="mt-3 text-[13px] text-ink2">
-            Your browser opens so you can sign in with Google. OpenWren never sees your password. This way needs your own Google client ID
-            {hasGoogleClient ? "." : ", entered first in "}
-            {!hasGoogleClient && (
-              <button type="button" className="text-brand underline" onClick={() => setDialog("settings", "accounts")}>
-                Settings
-              </button>
-            )}
-            {!hasGoogleClient && "."}{" "}
+            {hasGoogleClient ? (
+              tr("addAccount.oauthNote")
+            ) : (
+              <>
+                {tr("addAccount.oauthNeedsClient")}
+                <button type="button" className="text-brand underline" onClick={() => setDialog("settings", "accounts")}>
+                  {tr("folder.settings")}
+                </button>
+                {tr("addAccount.oauthNeedsClientAfter")}
+              </>
+            )}{" "}
             <button type="button" className="text-brand underline" onClick={() => (setGoogleWay("password"), setError(""))}>
-              Use an app password instead
+              {tr("addAccount.useAppPassword")}
             </button>
           </p>
         )}
         {kind !== "google" && (
           <>
-            <ServerRow id="aa-in" title="Incoming server (IMAP)" protocol="imap" value={incoming} onChange={setIncoming} />
-            <ServerRow id="aa-out" title="Outgoing server (SMTP)" optional protocol="smtp" value={outgoing} onChange={setOutgoing} />
-            {insecure && <p className="mt-2 text-xs text-danger">Without encryption your password and mail travel unprotected. Use this only for a test server on your own computer.</p>}
-            <p className="mt-3 text-xs text-ink3">
-              The password is stored in your system's password store, not in OpenWren's files.
-            </p>
+            <ServerRow id="aa-in" title={tr("addAccount.incoming")} protocol="imap" value={incoming} onChange={setIncoming} />
+            <ServerRow id="aa-out" title={tr("addAccount.outgoing")} optional protocol="smtp" value={outgoing} onChange={setOutgoing} />
+            {insecure && <p className="mt-2 text-xs text-danger">{tr("addAccount.insecure")}</p>}
+            <p className="mt-3 text-xs text-ink3">{tr("addAccount.stored")}</p>
           </>
         )}
 
@@ -338,9 +342,9 @@ export function AddAccount() {
         )}
 
         <div className="mt-4 flex justify-end gap-2">
-          <Button onClick={close}>Cancel</Button>
+          <Button onClick={close}>{tr("reader.cancel")}</Button>
           <Button variant="primary" type="submit">
-            {busy ? (oauth ? "Waiting for the browser…" : "Checking…") : oauth ? "Sign in with Google" : "Add account"}
+            {busy ? (oauth ? tr("addAccount.waitingBrowser") : tr("addAccount.checking")) : oauth ? tr("addAccount.signInGoogle") : tr("folder.addAccount")}
           </Button>
         </div>
       </form>
