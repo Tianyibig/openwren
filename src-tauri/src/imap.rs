@@ -197,6 +197,17 @@ pub async fn fetch(session: &mut Session, uids: &str, query: &str) -> Result<Vec
     Ok(session.uid_fetch(uids, query).await?.try_collect().await?)
 }
 
+/// What to fetch for message flags. A mod-sequence from an earlier sync turns the
+/// fetch into a CONDSTORE one (RFC 7162), and the server sends back only the
+/// messages whose flags moved since then. Without one, every flag is read, which
+/// on a large mailbox is the most expensive thing a sync does.
+pub fn flags_query(changed_since: Option<u64>) -> String {
+    match changed_since {
+        Some(modseq) => format!("(UID FLAGS) (CHANGEDSINCE {modseq})"),
+        None => "(UID FLAGS)".to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -222,5 +233,11 @@ mod tests {
     #[test]
     fn formats_uid_sets() {
         assert_eq!(uid_set(&[3, 1, 20]), "3,1,20");
+    }
+
+    #[test]
+    fn flag_fetch_narrows_to_changed_since_when_a_modseq_is_known() {
+        assert_eq!(flags_query(None), "(UID FLAGS)");
+        assert_eq!(flags_query(Some(4711)), "(UID FLAGS) (CHANGEDSINCE 4711)");
     }
 }

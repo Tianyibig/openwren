@@ -3,7 +3,7 @@
 //! Two passes (PLAN.md 4.1): headers and flags for every message, newest first,
 //! with no age limit; then bodies in the background.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::db::{self, Db, NewMessage};
 use crate::error::{Error, Result};
@@ -86,25 +86,56 @@ async fn sync_folder(db: &Db, session: &mut Session, account_id: i64, folder_id:
         let known = db::folder_uid_validity(&conn, folder_id)?;
         if known.is_some() && known != mailbox.uid_validity {
             db::delete_folder_messages(&conn, folder_id)?;
+            // The change counter belonged to the numbering that just went away.
+            db::set_folder_modseq(&conn, folder_id, None)?;
         }
         db::set_folder_uid_validity(&conn, folder_id, mailbox.uid_validity)?;
     }
 
-    let remote = if mailbox.exists == 0 { Default::default() } else { session.uid_search("ALL").await? };
     let local = db::local_uids(&db::lock(db), folder_id)?;
+    let highest = local.iter().copied().max();
+
+    // UIDs are handed out in order, so the server's UIDNEXT says whether anything was
+    // appended since the last sync at all. When it is exactly one past the highest UID
+    // held here and the number of messages has not moved, only flags can have changed,
+    // and both UID lists stay on the server. Anything else — new mail, mail deleted on
+    // another device, a draft replaced by a copy with a new UID — costs one full UID
+    // list, which is what every sync used to do.
+    let unchanged = matches!(highest.and_then(|highest| highest.checked_add(1)), Some(next) if mailbox.uid_next == Some(next))
+        && mailbox.exists as usize == local.len();
+    let mut gone: Vec<u32> = Vec::new();
+    let new_uids: Vec<u32> = if unchanged {
+        Vec::new()
+    } else {
+        let all = if mailbox.exists == 0 { HashSet::new() } else { session.uid_search("ALL").await? };
+        gone = local.difference(&all).copied().collect();
+        all.difference(&local).copied().collect()
+    };
 
     // Messages queued to leave this folder are no longer shown here; do not bring them back.
     let leaving = db::pending_move_uids(&db::lock(db), account_id, path)?;
 
-    let gone: Vec<u32> = local.difference(&remote).copied().collect();
     if !gone.is_empty() {
         db::delete_uids(&db::lock(db), folder_id, &gone)?;
         notifier.changed(account_id);
     }
 
-    // Flags of messages we already have (read elsewhere, flagged elsewhere).
+    // Flags of messages we already have (read elsewhere, flagged elsewhere). With
+    // CONDSTORE the server sends back only the ones that moved since the last sync,
+    // which is the difference between a poll that costs nothing and one that reads
+    // the flags of the whole folder every couple of minutes.
+    let changed_since = if mailbox.highest_modseq.is_some() { db::folder_modseq(&db::lock(db), folder_id)? } else { None };
     if local.len() > gone.len() {
-        let fetches = imap::fetch(session, "1:*", "(UID FLAGS)").await?;
+        let fetches = match imap::fetch(session, "1:*", &imap::flags_query(changed_since)).await {
+            Ok(fetches) => fetches,
+            // A server that reports a change counter yet cannot narrow a fetch: forget
+            // the counter and read every flag, as a server without CONDSTORE needs.
+            Err(_) if changed_since.is_some() => {
+                db::set_folder_modseq(&db::lock(db), folder_id, None)?;
+                imap::fetch(session, "1:*", &imap::flags_query(None)).await?
+            }
+            Err(e) => return Err(e),
+        };
         let mut changed = false;
         {
             let conn = db::lock(db);
@@ -119,9 +150,15 @@ async fn sync_folder(db: &Db, session: &mut Session, account_id: i64, folder_id:
             notifier.changed(account_id);
         }
     }
+    // Where the server's change counter stood when this folder was read: the next sync
+    // asks for what happened after it. Mail that arrives meanwhile is caught by the UID
+    // search above, so nothing depends on this number being exact.
+    if let Some(modseq) = mailbox.highest_modseq {
+        db::set_folder_modseq(&db::lock(db), folder_id, Some(modseq))?;
+    }
 
     // New headers, newest first, in chunks so the list fills while syncing.
-    let mut new: Vec<u32> = remote.difference(&local).filter(|uid| !leaving.contains(uid)).copied().collect();
+    let mut new: Vec<u32> = new_uids.into_iter().filter(|uid| !leaving.contains(uid)).collect();
     new.sort_unstable_by(|a, b| b.cmp(a));
     let total = new.len() as u32;
     let mut done = 0;
