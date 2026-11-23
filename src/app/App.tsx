@@ -10,7 +10,8 @@ import { ErrorBoundary } from "../components/ErrorBoundary";
 import { Button } from "../components/ui";
 import { fontChoice, fontStack } from "../lib/font";
 import { useStore } from "../store";
-import { isMac, mod } from "../lib/keys";
+import { composing, isMac, mod } from "../lib/keys";
+import { useLang } from "../lib/useTranslate";
 import { REPOSITORY } from "../lib/links";
 import { backend } from "../backend";
 
@@ -61,6 +62,9 @@ function typing(target: EventTarget | null): boolean {
 
 /** Keyboard shortcuts, following Outlook's (PLAN.md 6.4). */
 function onShortcut(e: KeyboardEvent) {
+  // An input method that is still composing owns the keyboard: Enter picks a
+  // candidate, the arrows move between them, and no shortcut may fire in between.
+  if (composing(e)) return;
   const s = useStore.getState();
   if (s.dialog || s.welcome || s.whatsNew) return;
   const key = e.key.toLowerCase();
@@ -178,6 +182,12 @@ export function App() {
 
   const theme = useStore((s) => s.settings.theme ?? "system");
   const density = useStore((s) => s.settings.density ?? "cozy");
+  // The document's language picks the font a Han character is drawn with, and tells a
+  // screen reader how to pronounce the interface.
+  const lang = useLang();
+  useEffect(() => {
+    document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+  }, [lang]);
 
   useEffect(() => {
     void init();
