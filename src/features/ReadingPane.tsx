@@ -362,9 +362,9 @@ export function ReadingPane() {
     showToast(tr("reader.openingFile", { name }));
     void backend.openAttachment(m.id, index, name).catch((e) => showToast(errorText(e)));
   };
-  // The right-click menu already knows how to do these; borrow them by name. Their labels are
-  // still English (actions.tsx), so they are matched by the labels that file gives them.
-  const borrowed = (...labels: string[]) => messageMenu(m).filter((item) => item !== "divider" && "onSelect" in item && labels.includes(item.label));
+  // The right-click menu already knows how to do these; borrow them by their stable ids.
+  const borrowed = (...ids: string[]) =>
+    messageMenu(m).filter((item) => item !== "divider" && "onSelect" in item && ids.includes(item.id ?? ""));
   const moreItems: MenuItem[] = [
     { label: tr("reader.replyAll"), icon: <IconArrowBackUpDouble size={16} />, onSelect: () => reply("reply-all") },
     { label: tr("reader.moveTo"), icon: <IconFolderShare size={16} />, submenu: moveItems(m) },
@@ -374,7 +374,7 @@ export function ReadingPane() {
     { label: m.flagged ? tr("reader.removeFlag") : tr("reader.flag"), icon: <IconFlag size={16} />, onSelect: () => void setFlags(m.id, { flagged: !m.flagged }) },
     { label: m.pinned ? tr("reader.unpin") : tr("reader.pin"), icon: <IconPin size={16} />, onSelect: () => void setFlags(m.id, { pinned: !m.pinned }) },
     "divider",
-    ...borrowed("Block sender", "View source", "Save as file…"),
+    ...borrowed("block", "source", "save"),
   ];
 
   const saveFile = (index: number, name: string) =>

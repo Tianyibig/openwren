@@ -21,6 +21,11 @@ import { t } from "../lib/i18n";
 import { useStore } from "../store";
 import type { MessageSummary } from "../types";
 
+/** A menu label in the language the interface is in; menus are built outside React. */
+function tr(key: string, vars?: Record<string, string | number>): string {
+  return t(currentLanguage(), key, vars);
+}
+
 /** Unix seconds for snooze choices. */
 export function snoozeTimes(now = new Date()): { label: string; at: number }[] {
   const at = (d: Date) => Math.floor(d.getTime() / 1000);
@@ -30,7 +35,6 @@ export function snoozeTimes(now = new Date()): { label: string; at: number }[] {
   tomorrow.setHours(8, 0, 0, 0);
   const monday = new Date(tomorrow);
   while (monday.getDay() !== 1) monday.setDate(monday.getDate() + 1);
-  const tr = (key: string) => t(currentLanguage(), key);
   return [
     { label: tr("snooze.inThreeHours"), at: at(later) },
     { label: tr("snooze.tomorrow"), at: at(tomorrow) },
@@ -56,7 +60,7 @@ export function categoryItems(m: MessageSummary): MenuItem[] {
     checked: m.categories.includes(name),
     onSelect: () => void setCategories(m.id, m.categories.includes(name) ? m.categories.filter((c) => c !== name) : [...m.categories, name]),
   }));
-  if (m.categories.length > 0) items.push("divider", { label: "Clear categories", onSelect: () => void setCategories(m.id, []) });
+  if (m.categories.length > 0) items.push("divider", { label: tr("action.clearCategories"), onSelect: () => void setCategories(m.id, []) });
   return items;
 }
 
@@ -73,29 +77,29 @@ export function messageMenu(m: MessageSummary): MenuItem[] {
   const save = () =>
     void backend
       .saveMessage(m.id, `${(m.subject || "message").replace(/[^\w .-]+/g, "_").slice(0, 60)}.eml`)
-      .then((saved) => saved && s.showToast("Message saved"))
+      .then((saved) => saved && s.showToast(tr("action.messageSaved")))
       .catch((e) => s.showToast(errorText(e)));
   const items: MenuItem[] = [
-    { label: "Archive", icon: <IconArchive size={16} />, onSelect: () => void s.moveMessages(ids, { role: "archive" }) },
-    { label: "Delete", icon: <IconTrash size={16} />, onSelect: () => void s.deleteMessages(ids), danger: true },
-    { label: "Move to inbox", icon: <IconInbox size={16} />, onSelect: () => void s.moveMessages(ids, { role: "inbox" }) },
-    { label: "Mark as junk", icon: <IconFolderShare size={16} />, onSelect: () => void s.moveMessages(ids, { role: "junk" }) },
+    { id: "archive", label: tr("reader.archive"), icon: <IconArchive size={16} />, onSelect: () => void s.moveMessages(ids, { role: "archive" }) },
+    { id: "delete", label: tr("reader.delete"), icon: <IconTrash size={16} />, onSelect: () => void s.deleteMessages(ids), danger: true },
+    { label: tr("action.moveInbox"), icon: <IconInbox size={16} />, onSelect: () => void s.moveMessages(ids, { role: "inbox" }) },
+    { label: tr("action.markJunk"), icon: <IconFolderShare size={16} />, onSelect: () => void s.moveMessages(ids, { role: "junk" }) },
     "divider",
-    { label: m.unread ? "Mark as read" : "Mark as unread", icon: <IconMailOpened size={16} />, onSelect: () => ids.forEach((id) => void s.setFlags(id, { unread: !m.unread })) },
-    { label: m.flagged ? "Remove flag" : "Flag", icon: <IconFlag size={16} />, onSelect: () => ids.forEach((id) => void s.setFlags(id, { flagged: !m.flagged })) },
+    { label: m.unread ? tr("reader.markRead") : tr("reader.markUnread"), icon: <IconMailOpened size={16} />, onSelect: () => ids.forEach((id) => void s.setFlags(id, { unread: !m.unread })) },
+    { label: m.flagged ? tr("reader.removeFlag") : tr("reader.flag"), icon: <IconFlag size={16} />, onSelect: () => ids.forEach((id) => void s.setFlags(id, { flagged: !m.flagged })) },
   ];
   if (many) return items;
   return [
     ...items,
-    { label: m.pinned ? "Unpin" : "Pin", icon: <IconPin size={16} />, onSelect: () => void s.setFlags(m.id, { pinned: !m.pinned }) },
-    { label: "Snooze until tomorrow", icon: <IconClock size={16} />, onSelect: () => void s.snooze(m.id, snoozeTimes()[1].at) },
+    { label: m.pinned ? tr("reader.unpin") : tr("reader.pin"), icon: <IconPin size={16} />, onSelect: () => void s.setFlags(m.id, { pinned: !m.pinned }) },
+    { label: tr("action.snoozeTomorrow"), icon: <IconClock size={16} />, onSelect: () => void s.snooze(m.id, snoozeTimes()[1].at) },
     "divider",
-    { label: "Sweep: delete all from this sender", icon: <IconSparkles size={16} />, onSelect: () => void s.sweep(m.id), danger: true },
-    ...(s.settings.focused_inbox !== "off" ? [{ label: m.focused ? "Always move sender to Other" : "Always move sender to Focused", onSelect: () => void s.setSenderFocus(m.id, !m.focused) }] : []),
-    { label: "Block sender", icon: <IconBan size={16} />, onSelect: () => void s.blockSender(m.id, false), danger: true },
+    { label: tr("action.sweep"), icon: <IconSparkles size={16} />, onSelect: () => void s.sweep(m.id), danger: true },
+    ...(s.settings.focused_inbox !== "off" ? [{ label: m.focused ? tr("action.focusOther") : tr("action.focusInbox"), onSelect: () => void s.setSenderFocus(m.id, !m.focused) }] : []),
+    { id: "block", label: tr("action.block"), icon: <IconBan size={16} />, onSelect: () => void s.blockSender(m.id, false), danger: true },
     // Blocking a whole domain makes no sense for addresses that millions of people share.
-    ...(PERSONAL.test(m.fromAddress) ? [] : [{ label: `Block everyone at ${m.fromAddress.split("@").pop()}`, icon: <IconBan size={16} />, onSelect: () => void s.blockSender(m.id, true), danger: true }]),
-    { label: "View source", icon: <IconCode size={16} />, onSelect: () => s.showSource(m.id) },
-    { label: "Save as file…", icon: <IconDeviceFloppy size={16} />, onSelect: save },
+    ...(PERSONAL.test(m.fromAddress) ? [] : [{ label: tr("action.blockDomain", { domain: m.fromAddress.split("@").pop() ?? "" }), icon: <IconBan size={16} />, onSelect: () => void s.blockSender(m.id, true), danger: true }]),
+    { id: "source", label: tr("action.viewSource"), icon: <IconCode size={16} />, onSelect: () => s.showSource(m.id) },
+    { id: "save", label: tr("action.saveFile"), icon: <IconDeviceFloppy size={16} />, onSelect: save },
   ];
 }

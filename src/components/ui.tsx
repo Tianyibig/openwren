@@ -102,6 +102,9 @@ interface MenuAction {
   onSelect: () => void;
   danger?: boolean;
   checked?: boolean;
+  /** A stable name for this entry, for code that picks one out of a menu by meaning
+   *  rather than by the words it currently shows. */
+  id?: string;
 }
 
 /**
