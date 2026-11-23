@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { brandFor } from "./brands";
+import { setLanguage } from "./currentLanguage";
 import { authProblem, cleanMail, lookAlike, nameProblem, readableHost, registrable, senderConfirmed } from "./privacy";
 
 describe("registrable", () => {
@@ -173,5 +174,24 @@ describe("cleanMail", () => {
     expect(pixels).toBe(0);
     expect(html).toContain("o.gif");
     expect(mismatches).toHaveLength(1);
+  });
+});
+
+describe("warnings in Chinese", () => {
+  afterEach(() => setLanguage("en"));
+
+  it("words a failed sender check in Chinese, listing the failures", () => {
+    setLanguage("zh");
+    expect(authProblem(by("spf=pass;dkim=fail;dmarc=fail"), MX)).toBe("你的邮件服务器无法确认发件人（DMARC、DKIM 未通过）。发件地址可能是伪造的。");
+  });
+
+  it("words a look-alike address in Chinese", () => {
+    setLanguage("zh");
+    expect(nameProblem("PayPal", "service@pаypal.com")).toContain("形似普通字母");
+  });
+
+  it("words a name that shows another address in Chinese", () => {
+    setLanguage("zh");
+    expect(nameProblem("service@paypal.com", "alerts@evil.example")).toContain("发件人名称里写的是");
   });
 });

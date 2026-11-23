@@ -28,6 +28,9 @@ import { backend, errorText } from "../backend";
 import { Avatar, Button, CategoryDot, IconButton, Marked, Menu, categories } from "../components/ui";
 import type { MenuItem } from "../components/ui";
 import { longTime, shortTime } from "../lib/dates";
+import { currentLanguage } from "../lib/currentLanguage";
+import { t } from "../lib/i18n";
+import { useT } from "../lib/useTranslate";
 import { authProblem, cleanMail, nameProblem, senderConfirmed } from "../lib/privacy";
 import { fileSize } from "../lib/search";
 import { useStore } from "../store";
@@ -39,8 +42,9 @@ import { mod } from "../lib/keys";
 const shell = "min-w-0 flex-1 overflow-y-auto bg-card";
 
 function Centered({ children }: { children: React.ReactNode }) {
+  const tr = useT();
   return (
-    <section className={`${shell} flex flex-col items-center justify-center gap-3 px-6 text-center text-ink2`} aria-label="Reading pane">
+    <section className={`${shell} flex flex-col items-center justify-center gap-3 px-6 text-center text-ink2`} aria-label={tr("reader.pane")}>
       {children}
     </section>
   );
@@ -48,18 +52,21 @@ function Centered({ children }: { children: React.ReactNode }) {
 
 /** "3 trackers removed", in words that say what was done. */
 function trackerNote(pixels: number, links: number): string | undefined {
+  const lang = currentLanguage();
   const parts = [
-    pixels > 0 && `${pixels} tracking ${pixels === 1 ? "image" : "images"} removed`,
-    links > 0 && `tracking removed from ${links} ${links === 1 ? "link" : "links"}`,
-  ].filter(Boolean);
-  return parts.length ? `Privacy: ${parts.join(", ")}.` : undefined;
+    pixels > 0 && t(lang, pixels === 1 ? "reader.trackerOne" : "reader.trackerMany", { n: pixels }),
+    links > 0 && t(lang, links === 1 ? "reader.linkOne" : "reader.linkMany", { n: links }),
+  ].filter((part): part is string => Boolean(part));
+  if (!parts.length) return undefined;
+  return t(lang, "reader.privacyNote", { what: parts.join(lang === "zh" ? "、" : ", ") });
 }
 
 /** The colour categories as one row of dots; a click switches a colour on or off. */
 function CategoryRow({ m, close }: { m: { id: number; categories: string[] }; close: () => void }) {
   const setCategories = useStore((s) => s.setCategories);
+  const tr = useT();
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5" role="group" aria-label="Colour categories">
+    <div className="flex items-center gap-2 px-3 py-1.5" role="group" aria-label={tr("reader.categoryGroup")}>
       <span className="flex w-[18px] flex-none justify-center text-ink2">
         <IconTag size={16} />
       </span>
@@ -69,8 +76,8 @@ function CategoryRow({ m, close }: { m: { id: number; categories: string[] }; cl
           <button
             key={name}
             type="button"
-            title={on ? `Remove ${name}` : name}
-            aria-label={`${name} category`}
+            title={on ? tr("reader.removeCategory", { name }) : name}
+            aria-label={tr("reader.categoryLabel", { name })}
             aria-pressed={on}
             onClick={() => {
               close();
@@ -92,6 +99,7 @@ function CategoryRow({ m, close }: { m: { id: number; categories: string[] }; cl
  */
 function QuickReply({ to }: { to: string }) {
   const { quickReply, reply, showToast } = useStore.getState();
+  const tr = useT();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const box = useRef<HTMLTextAreaElement>(null);
@@ -130,22 +138,22 @@ function QuickReply({ to }: { to: string }) {
             e.stopPropagation();
             if (mod(e) && e.key === "Enter") void send();
           }}
-          placeholder={`Reply to ${to}`}
-          aria-label={`Reply to ${to}`}
+          placeholder={tr("reader.replyTo", { name: to })}
+          aria-label={tr("reader.replyTo", { name: to })}
           className="selectable block w-full resize-none bg-transparent outline-none placeholder:text-ink3"
         />
         <div className="mt-1 flex items-center gap-1">
-          <button type="button" aria-label="Attach a file" title="Attach a file" className={tool} onClick={() => reply("reply", asHtml())}>
+          <button type="button" aria-label={tr("reader.attachFile")} title={tr("reader.attachFile")} className={tool} onClick={() => reply("reply", asHtml())}>
             <IconPaperclip size={18} stroke={1.6} />
           </button>
-          <button type="button" aria-label="Signature and formatting" title="Signature and formatting" className={tool} onClick={() => reply("reply", asHtml())}>
+          <button type="button" aria-label={tr("reader.signatureFormat")} title={tr("reader.signatureFormat")} className={tool} onClick={() => reply("reply", asHtml())}>
             <IconSignature size={18} stroke={1.6} />
           </button>
           <button type="button" className="ml-auto rounded-md px-2.5 py-1.5 text-ink2 hover:bg-hover" onClick={() => reply("forward", asHtml())}>
-            Forward
+            {tr("reader.forward")}
           </button>
           <button type="button" className="rounded-lg bg-ink px-4 py-1.5 text-card hover:opacity-90" onClick={() => void send()}>
-            {busy ? "Sending…" : "Send"}
+            {busy ? tr("reader.sending") : tr("reader.send")}
           </button>
         </div>
       </div>
@@ -190,19 +198,21 @@ interface Reason {
 
 function Warning({ id, reasons }: { id: number; reasons: Reason[] }) {
   const blockSender = useStore((s) => s.blockSender);
+  const tr = useT();
   const [open, setOpen] = useState(false);
   const first = reasons[0].short;
   const action = "flex-none rounded-md px-1.5 py-0.5 hover:bg-card/50";
+  const summary = open ? tr("reader.beCareful") : reasons.length > 1 ? tr("reader.reasonsMore", { first, n: reasons.length - 1 }) : first;
   return (
     <div className="mb-4 flex-none rounded-[10px] bg-warn px-3.5 py-2.5 text-on-warn" role="alert">
       <div className="flex items-center gap-2">
         <IconAlertTriangle size={17} className="flex-none" />
-        <span className="min-w-0 flex-1 truncate">{open ? "Be careful with this message" : reasons.length > 1 ? `${first}, and ${reasons.length - 1} more ${reasons.length === 2 ? "reason" : "reasons"}` : first}</span>
+        <span className="min-w-0 flex-1 truncate">{summary}</span>
         <button type="button" className={action} aria-expanded={open} onClick={() => setOpen(!open)}>
-          {open ? "Hide" : "Details"}
+          {open ? tr("reader.hide") : tr("reader.details")}
         </button>
         <button type="button" className={action} onClick={() => void blockSender(id, false)}>
-          Block
+          {tr("reader.block")}
         </button>
       </div>
       {open && (
@@ -219,22 +229,21 @@ function Warning({ id, reasons }: { id: number; reasons: Reason[] }) {
 /** Offers to unsubscribe from a mailing; asks once before doing it. */
 function Unsubscribe({ sender, kind, to }: { sender: string; kind: "one-click" | "mail" | "link"; to: string }) {
   const unsubscribe = useStore((s) => s.unsubscribe);
+  const tr = useT();
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   // Say where the request goes: the address comes from the message, and the reader should see it first.
   const how =
     kind === "one-click"
-      ? `OpenWren sends the request to ${to} for you.`
+      ? tr("reader.unsubOneClick", { to })
       : kind === "mail"
-        ? `OpenWren sends an unsubscribe message from your address to ${to}.`
-        : `The unsubscribe page at ${to} opens in your browser.`;
+        ? tr("reader.unsubMail", { to })
+        : tr("reader.unsubLink", { to });
   return (
     <div className="mb-3 flex items-center gap-3 rounded-[10px] bg-canvas px-3 py-1.5 text-[13px] text-ink2">
       {asking ? (
         <>
-          <span>
-            Ask {sender} to stop sending you mail? {how}
-          </span>
+          <span>{tr("reader.askUnsubscribe", { sender, how })}</span>
           <Button
             className="ml-auto h-7 flex-none"
             variant="primary"
@@ -243,17 +252,17 @@ function Unsubscribe({ sender, kind, to }: { sender: string; kind: "one-click" |
               void unsubscribe().finally(() => (setBusy(false), setAsking(false)));
             }}
           >
-            {busy ? "Sending…" : "Unsubscribe"}
+            {busy ? tr("reader.sending") : tr("reader.unsubscribe")}
           </Button>
           <Button className="h-7 flex-none" onClick={() => setAsking(false)}>
-            Cancel
+            {tr("reader.cancel")}
           </Button>
         </>
       ) : (
         <>
-          This is a mailing.
+          {tr("reader.mailing")}
           <Button className="ml-auto h-7" onClick={() => setAsking(true)}>
-            Unsubscribe
+            {tr("reader.unsubscribe")}
           </Button>
         </>
       )}
@@ -280,6 +289,7 @@ export function ReadingPane() {
   const setSetting = useStore((s) => s.setSetting);
   const cleaned = useMemo(() => (m?.html ? cleanMail(m.html, blockTrackers) : null), [m?.id, m?.html, blockTrackers]);
   const { setFlags, moveMessages, deleteMessages, selectMessage, reply, setDialog, showToast, targets } = useStore.getState();
+  const tr = useT();
   const now = useMemo(() => new Date(), [m]);
 
   if (draft) return <Composer key={`${draft.id ?? "new"}-${draft.inReplyTo}-${draft.subject}`} className={shell} />;
@@ -287,10 +297,10 @@ export function ReadingPane() {
     return (
       <Centered>
         <IconMail size={36} stroke={1.25} />
-        <p className="text-base text-ink">Add your first account</p>
-        <p>OpenWren keeps your mail on this computer and in sync with your mail server.</p>
+        <p className="text-base text-ink">{tr("reader.addFirst")}</p>
+        <p>{tr("reader.keepNote")}</p>
         <Button variant="primary" onClick={() => setDialog("add-account")}>
-          Add account
+          {tr("reader.addAccount")}
         </Button>
       </Centered>
     );
@@ -298,19 +308,19 @@ export function ReadingPane() {
   if (selectedCount > 1) {
     return (
       <Centered>
-        <p className="text-base text-ink">{selectedCount} messages selected</p>
+        <p className="text-base text-ink">{tr("reader.messagesSelected", { n: selectedCount })}</p>
         <div className="flex gap-2">
           <Button onClick={() => void moveMessages(targets(), { role: "archive" })}>
-            <IconArchive size={18} /> Archive
+            <IconArchive size={18} /> {tr("reader.archive")}
           </Button>
           <Button onClick={() => void deleteMessages(targets())}>
-            <IconTrash size={18} /> Delete
+            <IconTrash size={18} /> {tr("reader.delete")}
           </Button>
           <Button onClick={() => targets().forEach((id) => void setFlags(id, { unread: false }))}>
-            <IconMailOpened size={18} /> Mark as read
+            <IconMailOpened size={18} /> {tr("reader.markRead")}
           </Button>
         </div>
-        <p>Drag the selection onto a folder to move it.</p>
+        <p>{tr("reader.dragToMove")}</p>
       </Centered>
     );
   }
@@ -318,9 +328,9 @@ export function ReadingPane() {
     return (
       <Centered>
         <IconAlertCircle size={36} stroke={1.25} className="text-danger" />
-        <p className="text-ink">This message couldn't be loaded.</p>
+        <p className="text-ink">{tr("reader.couldNotLoad")}</p>
         <p className="selectable max-w-md">{error}</p>
-        <Button onClick={() => void selectMessage(messageId)}>Try again</Button>
+        <Button onClick={() => void selectMessage(messageId)}>{tr("reader.tryAgain")}</Button>
       </Centered>
     );
   }
@@ -328,7 +338,7 @@ export function ReadingPane() {
     return (
       <Centered>
         <IconMail size={36} stroke={1.25} />
-        {messageId === null ? "Select a message to read it" : "Loading…"}
+        {messageId === null ? tr("reader.selectMessage") : tr("reader.loading")}
       </Centered>
     );
   }
@@ -338,10 +348,10 @@ export function ReadingPane() {
   const warnings: Reason[] = warn
     ? (
         [
-          ["Sender not confirmed", authProblem(m.auth, authServer)],
-          ["Sender name does not match the address", nameProblem(m.fromName, m.fromAddress)],
-          ...(cleaned?.mismatches ?? []).slice(0, 3).map((l): [string, string] => ["Misleading link", `A link shows "${l.shown}" but leads to ${l.goes}.`]),
-          ...(cleaned?.lookAlikes ?? []).slice(0, 3).map((name): [string, string] => ["Look-alike link", `A link leads to ${name}, a name that uses look-alike letters from another alphabet.`]),
+          [tr("reader.reason.notConfirmed"), authProblem(m.auth, authServer)],
+          [tr("reader.reason.nameMismatch"), nameProblem(m.fromName, m.fromAddress)],
+          ...(cleaned?.mismatches ?? []).slice(0, 3).map((l): [string, string] => [tr("reader.reason.misleadingLink"), tr("reader.misleadingLink", { shown: l.shown, goes: l.goes })]),
+          ...(cleaned?.lookAlikes ?? []).slice(0, 3).map((name): [string, string] => [tr("reader.reason.lookAlikeLink"), tr("reader.lookAlikeLink", { name })]),
         ] as [string, string | null][]
       )
         .filter((w): w is [string, string] => !!w[1])
@@ -349,19 +359,20 @@ export function ReadingPane() {
     : [];
 
   const openFile = (index: number, name: string) => {
-    showToast(`Opening ${name}…`);
+    showToast(tr("reader.openingFile", { name }));
     void backend.openAttachment(m.id, index, name).catch((e) => showToast(errorText(e)));
   };
-  // The right-click menu already knows how to do these; borrow them by name.
+  // The right-click menu already knows how to do these; borrow them by name. Their labels are
+  // still English (actions.tsx), so they are matched by the labels that file gives them.
   const borrowed = (...labels: string[]) => messageMenu(m).filter((item) => item !== "divider" && "onSelect" in item && labels.includes(item.label));
   const moreItems: MenuItem[] = [
-    { label: "Reply all", icon: <IconArrowBackUpDouble size={16} />, onSelect: () => reply("reply-all") },
-    { label: "Move to", icon: <IconFolderShare size={16} />, submenu: moveItems(m) },
+    { label: tr("reader.replyAll"), icon: <IconArrowBackUpDouble size={16} />, onSelect: () => reply("reply-all") },
+    { label: tr("reader.moveTo"), icon: <IconFolderShare size={16} />, submenu: moveItems(m) },
     { custom: (close) => <CategoryRow m={m} close={close} /> },
     "divider",
-    { label: m.unread ? "Mark as read" : "Mark as unread", icon: <IconMailOpened size={16} />, onSelect: () => void setFlags(m.id, { unread: !m.unread }) },
-    { label: m.flagged ? "Remove flag" : "Flag", icon: <IconFlag size={16} />, onSelect: () => void setFlags(m.id, { flagged: !m.flagged }) },
-    { label: m.pinned ? "Unpin" : "Pin", icon: <IconPin size={16} />, onSelect: () => void setFlags(m.id, { pinned: !m.pinned }) },
+    { label: m.unread ? tr("reader.markRead") : tr("reader.markUnread"), icon: <IconMailOpened size={16} />, onSelect: () => void setFlags(m.id, { unread: !m.unread }) },
+    { label: m.flagged ? tr("reader.removeFlag") : tr("reader.flag"), icon: <IconFlag size={16} />, onSelect: () => void setFlags(m.id, { flagged: !m.flagged }) },
+    { label: m.pinned ? tr("reader.unpin") : tr("reader.pin"), icon: <IconPin size={16} />, onSelect: () => void setFlags(m.id, { pinned: !m.pinned }) },
     "divider",
     ...borrowed("Block sender", "View source", "Save as file…"),
   ];
@@ -369,35 +380,35 @@ export function ReadingPane() {
   const saveFile = (index: number, name: string) =>
     void backend
       .saveAttachment(m.id, index, name)
-      .then((saved) => saved && showToast(`${name} saved`))
+      .then((saved) => saved && showToast(tr("reader.fileSaved", { name })))
       .catch((e) => showToast(errorText(e)));
 
   return (
-    <section className={`${shell} flex flex-col px-7 pt-3 pb-5`} aria-label="Reading pane">
+    <section className={`${shell} flex flex-col px-7 pt-3 pb-5`} aria-label={tr("reader.pane")}>
       {/* The three everyday actions on the left; filing on the right; everything else under "More". */}
-      <div className="mb-2.5 -ml-1.5 flex flex-none items-center gap-0.5 text-ink2" role="toolbar" aria-label="Message actions">
-        <IconButton label="Archive" onClick={() => void moveMessages([m.id], { role: "archive" })}>
+      <div className="mb-2.5 -ml-1.5 flex flex-none items-center gap-0.5 text-ink2" role="toolbar" aria-label={tr("reader.actions")}>
+        <IconButton label={tr("reader.archive")} onClick={() => void moveMessages([m.id], { role: "archive" })}>
           <IconArchive size={19} />
         </IconButton>
-        <IconButton label="Delete" onClick={() => void deleteMessages([m.id])}>
+        <IconButton label={tr("reader.delete")} onClick={() => void deleteMessages([m.id])}>
           <IconTrash size={19} />
         </IconButton>
-        <Menu label="Snooze" button={<IconClock size={19} />} items={snoozeItems(m)} />
+        <Menu label={tr("reader.snooze")} button={<IconClock size={19} />} items={snoozeItems(m)} />
         {/* Flag and pin show here only while set, so they can be cleared with one click. */}
         {m.flagged && (
-          <IconButton label="Remove flag" active onClick={() => void setFlags(m.id, { flagged: false })}>
+          <IconButton label={tr("reader.removeFlag")} active onClick={() => void setFlags(m.id, { flagged: false })}>
             <IconFlag size={19} stroke={1.6} />
           </IconButton>
         )}
         {m.pinned && (
-          <IconButton label="Unpin" active onClick={() => void setFlags(m.id, { pinned: false })}>
+          <IconButton label={tr("reader.unpin")} active onClick={() => void setFlags(m.id, { pinned: false })}>
             <IconPin size={19} stroke={1.6} />
           </IconButton>
         )}
         <div className="ml-auto flex items-center gap-0.5">
           {!isDraft && (
             <IconButton
-              label="Reply"
+              label={tr("reader.reply")}
               onClick={() => {
                 // Jump to the reply box at the bottom and start typing there.
                 const box = document.getElementById("quick-reply");
@@ -408,15 +419,15 @@ export function ReadingPane() {
               <IconArrowBackUp size={19} />
             </IconButton>
           )}
-          <IconButton label="Forward" onClick={() => reply("forward")}>
+          <IconButton label={tr("reader.forward")} onClick={() => reply("forward")}>
             <IconArrowForwardUp size={19} />
           </IconButton>
-          <Menu label="More actions" align="right" button={<IconDots size={19} />} items={moreItems} />
+          <Menu label={tr("reader.moreActions")} align="right" button={<IconDots size={19} />} items={moreItems} />
         </div>
       </div>
 
       <h1 className="selectable mb-3.5 flex items-center gap-2 text-[23px] leading-snug text-ink">
-        <Marked text={m.subject || "(no subject)"} query={query} />
+        <Marked text={m.subject || tr("reader.noSubject")} query={query} />
         {m.categories.map((c) => (
           <CategoryDot key={c} name={c} />
         ))}
@@ -424,7 +435,7 @@ export function ReadingPane() {
 
       {/* The whole conversation, oldest first. The list stays put while you move through it. */}
       {thread.length > 1 && (
-        <div className="mb-4 flex-none rounded-[10px] bg-canvas p-1.5" aria-label="Conversation">
+        <div className="mb-4 flex-none rounded-[10px] bg-canvas p-1.5" aria-label={tr("reader.conversation")}>
           {/* The arrow folds the list away, which helps with long conversations; the choice is remembered. */}
           <button
             type="button"
@@ -433,7 +444,7 @@ export function ReadingPane() {
             className="flex w-full items-center gap-1 rounded-lg px-2 py-1 text-left text-xs text-ink2 hover:bg-hover"
           >
             {threadHidden ? <IconChevronRight size={14} /> : <IconChevronDown size={14} />}
-            {thread.length} messages in this conversation
+            {tr("reader.messagesInConversation", { n: thread.length })}
           </button>
           {!threadHidden && thread.map((t) => (
             <button
@@ -461,19 +472,19 @@ export function ReadingPane() {
             {m.fromAddress && m.fromAddress !== m.fromName && <span className="text-ink3"> {m.fromAddress}</span>}
           </div>
           <div className="truncate text-[13px] text-ink3">
-            to {m.to || "undisclosed recipients"}
-            {m.cc && `, cc ${m.cc}`} · {longTime(new Date(m.date * 1000), now).replace(/^(Today|Yesterday)/, (word) => word.toLowerCase())}
+            {tr("reader.toLine", { to: m.to || tr("reader.undisclosed") })}
+            {m.cc && tr("reader.ccLine", { cc: m.cc })} · {longTime(new Date(m.date * 1000), now).replace(/^(Today|Yesterday)/, (word) => word.toLowerCase())}
           </div>
         </div>
         {isDraft && (
           <Button variant="primary" onClick={editDraft}>
-            <IconPencil size={18} /> Edit draft
+            <IconPencil size={18} /> {tr("reader.editDraft")}
           </Button>
         )}
       </div>
 
       {warnings.length > 0 && <Warning key={`warning-${m.id}`} id={m.id} reasons={warnings} />}
-      {m.unsubscribe && !isDraft && <Unsubscribe key={`unsubscribe-${m.id}`} sender={m.fromName} kind={m.unsubscribe} to={m.unsubscribeTo ?? "the sender"} />}
+      {m.unsubscribe && !isDraft && <Unsubscribe key={`unsubscribe-${m.id}`} sender={m.fromName} kind={m.unsubscribe} to={m.unsubscribeTo ?? tr("reader.unsubTo")} />}
 
       {m.html ? (
         <HtmlBody key={`body-${m.id}`} sender={m.fromAddress} confirmed={senderConfirmed(m.auth, authServer)} html={cleaned?.html ?? m.html} note={trackerNote(cleaned?.pixels ?? 0, cleaned?.links ?? 0)} />
@@ -488,16 +499,16 @@ export function ReadingPane() {
           {m.attachments.map((a, i) => (
             // Clicking the name opens the file; the arrow offers to save it.
             <div key={`${a.name}-${i}`} className="inline-flex items-center rounded-[10px] border border-edge text-ink2">
-              <button type="button" title={`Open ${a.name}`} onClick={() => openFile(i, a.name)} className="inline-flex items-center gap-2 rounded-l-[10px] py-2 pr-2 pl-3 hover:bg-hover">
+              <button type="button" title={tr("reader.openFile", { name: a.name })} onClick={() => openFile(i, a.name)} className="inline-flex items-center gap-2 rounded-l-[10px] py-2 pr-2 pl-3 hover:bg-hover">
                 <IconFileText size={18} />
                 {a.name} · {fileSize(a.size)}
               </button>
               <Menu
-                label={`More for ${a.name}`}
+                label={tr("reader.moreForFile", { name: a.name })}
                 button={<IconChevronDown size={16} />}
                 items={[
-                  { label: "Open", icon: <IconExternalLink size={16} />, onSelect: () => openFile(i, a.name) },
-                  { label: "Save as…", icon: <IconDeviceFloppy size={16} />, onSelect: () => saveFile(i, a.name) },
+                  { label: tr("reader.open"), icon: <IconExternalLink size={16} />, onSelect: () => openFile(i, a.name) },
+                  { label: tr("reader.saveAs"), icon: <IconDeviceFloppy size={16} />, onSelect: () => saveFile(i, a.name) },
                 ]}
               />
             </div>
