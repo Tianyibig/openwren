@@ -277,7 +277,7 @@ async fn sync_loop(app: &AppHandle, account_id: i64, wake: &Notify) -> Result<()
         if left > 0 || unread_headers > 0 {
             continue;
         }
-        sync::Notifier::progress(&notifier, Progress { account_id, phase: "idle".into(), done: 0, total: 0, message: String::new() });
+        sync::Notifier::progress(&notifier, Progress { account_id, phase: "idle".into(), done: 0, total: 0, message: String::new(), kind: None });
         session = wait_for_news(session, wake).await?;
     }
 }
@@ -291,7 +291,7 @@ fn spawn_account(app: AppHandle, account_id: i64) {
                 return; // the account was removed
             }
             if let Err(e) = sync_loop(&app, account_id, &wake).await {
-                let _ = app.emit("sync-progress", Progress { account_id, phase: "error".into(), done: 0, total: 0, message: e.0 });
+                let _ = app.emit("sync-progress", Progress { account_id, phase: "error".into(), done: 0, total: 0, message: e.0.clone(), kind: Some(e.kind()) });
             }
             tokio::select! { _ = tokio::time::sleep(RETRY_AFTER) => {}, _ = wake.notified() => {} }
         }

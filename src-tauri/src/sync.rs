@@ -33,7 +33,7 @@ const BODY_CHUNK: usize = 20;
 const NEWEST_FIRST: u32 = 60;
 
 fn report(notifier: &dyn Notifier, account_id: i64, phase: &str, done: u32, total: u32, message: &str) {
-    notifier.progress(Progress { account_id, phase: phase.into(), done, total, message: message.into() });
+    notifier.progress(Progress { account_id, phase: phase.into(), done, total, message: message.into(), kind: None });
 }
 
 /// Pass 1: folders, then every folder's headers and flags.
