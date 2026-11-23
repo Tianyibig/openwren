@@ -120,8 +120,8 @@ function Accounts() {
             <button
               type="button"
               draggable
-              aria-label={`Move ${a.address}. Drag it, or press the up or down arrow.`}
-              title="Drag to reorder"
+              aria-label={tr("accounts.move", { address: a.address })}
+              title={tr("accounts.dragToReorder")}
               className="flex-none cursor-grab rounded-md p-1.5 text-ink3 hover:bg-hover hover:text-ink active:cursor-grabbing"
               onDragStart={(e) => {
                 e.dataTransfer.effectAllowed = "move";
@@ -152,51 +152,49 @@ function Accounts() {
               {a.kind === "gmail" ? "Google" : "IMAP"}
               {progress[a.id] && ` · ${statusText(progress[a.id], tr)}`}
             </div>
-            <div className="truncate text-xs text-ink2" title="Senders are confirmed only by this server's checks. It is learned from nearly all of the account's mail, or known for Gmail.">
-              {a.authServer ? `Sender checks by ${a.authServer}` : "Sender checks: still learning which server makes them"}
+            <div className="truncate text-xs text-ink2" title={tr("accounts.senderChecksHint")}>
+              {a.authServer ? tr("accounts.senderChecksBy", { server: a.authServer }) : tr("accounts.senderChecksLearning")}
             </div>
           </div>
           {removing === a.id ? (
             <span className="text-[13px] text-ink2" role="status">
-              Removing…
+              {tr("accounts.removing")}
             </span>
           ) : confirm === a.id ? (
             <>
-              <span className="text-[13px] text-ink2">Remove from this computer?</span>
+              <span className="text-[13px] text-ink2">{tr("accounts.removeQuestion")}</span>
               <Button className="h-8 text-danger" onClick={() => void remove(a.id)}>
-                Remove
+                {tr("accounts.remove")}
               </Button>
               <Button className="h-8" onClick={() => setConfirm(null)}>
-                Keep
+                {tr("accounts.keep")}
               </Button>
             </>
           ) : (
-            <IconButton label={`Remove ${a.address}`} onClick={() => setConfirm(a.id)}>
+            <IconButton label={tr("accounts.removeOne", { address: a.address })} onClick={() => setConfirm(a.id)}>
               <IconTrash size={18} />
             </IconButton>
           )}
         </div>
       ))}
-      {accounts.length === 0 && <p className="mb-2 text-ink2">No accounts yet.</p>}
+      {accounts.length === 0 && <p className="mb-2 text-ink2">{tr("folder.noAccounts")}</p>}
       <Button variant="primary" onClick={() => setDialog("add-account")}>
-        Add account
+        {tr("folder.addAccount")}
       </Button>
       <p className="mt-2 text-xs text-ink3">
-        {accounts.length > 1 && `Drag an account by its dots to change the order here and in the folder list. In "All inboxes", new mail is written from the first account. `}
-        Removing an account deletes its local copy and saved password. Nothing changes on the mail server.
+        {accounts.length > 1 && `${tr("accounts.orderNote")} `}
+        {tr("accounts.removeNote")}
       </p>
       <Problem text={error} />
 
-      <h3 className="mt-6 mb-1 font-semibold">Google sign-in</h3>
-      <p className="mb-2 text-[13px] text-ink2">
-        Gmail needs a Google OAuth client of type "Desktop app" from your own Google Cloud project, with the Gmail API enabled. Paste its ID and secret here.
-      </p>
+      <h3 className="mt-6 mb-1 font-semibold">{tr("accounts.googleTitle")}</h3>
+      <p className="mb-2 text-[13px] text-ink2">{tr("accounts.googleNote")}</p>
       <label className={fieldCaption} htmlFor="g-id">
-        Client ID
+        {tr("accounts.clientId")}
       </label>
       <input id="g-id" className={fieldBox} value={settings.google_client_id ?? ""} placeholder="1234567890-abc.apps.googleusercontent.com" autoComplete="off" onChange={(e) => void setSetting("google_client_id", e.target.value)} />
       <label className={`${fieldCaption} mt-3`} htmlFor="g-secret">
-        Client secret
+        {tr("accounts.clientSecret")}
       </label>
       <input id="g-secret" type="password" className={fieldBox} value={settings.google_client_secret ?? ""} autoComplete="off" onChange={(e) => void setSetting("google_client_secret", e.target.value)} />
     </>
@@ -572,9 +570,10 @@ function Appearance() {
 function Privacy() {
   const settings = useStore((s) => s.settings);
   const setSetting = useStore((s) => s.setSetting);
+  const tr = useT();
   const onOff: ["on" | "off", string][] = [
-    ["on", "On"],
-    ["off", "Off"],
+    ["on", tr("privacyPage.on")],
+    ["off", tr("privacyPage.off")],
   ];
   const note = "mb-4 -mt-2 text-[13px] text-ink2";
   // Same format as the image list: a JSON list of text entries.
@@ -582,51 +581,49 @@ function Privacy() {
   const imageList = imageSenders(settings.image_senders);
   return (
     <>
-      <Options label="Remove trackers from mail" value={settings.block_trackers === "off" ? "off" : "on"} onChange={(v) => void setSetting("block_trackers", v)} options={onOff} />
-      <p className={note}>Hidden images that report when you open a message are removed, and tracking codes are taken out of links. The message says how many were found.</p>
-      <Options label="Warn about suspicious mail" value={settings.phishing_warnings === "off" ? "off" : "on"} onChange={(v) => void setSetting("phishing_warnings", v)} options={onOff} />
-      <p className={note}>A warning appears when your mail server could not confirm the sender, when the sender's name claims to be a company the address does not belong to, when a link shows one site but leads to another, or when an address imitates ordinary letters with look-alike ones from another alphabet.</p>
-      <Options label="Company logos for well-known senders" value={settings.brand_logos === "off" ? "off" : "on"} onChange={(v) => void setSetting("brand_logos", v)} options={onOff} />
-      <p className={note}>The logos are part of OpenWren, so nothing is looked up online. A logo appears only when the address belongs to that company and your mail server confirmed the sender; while OpenWren is still learning which server that is, or if yours does no such checks, senders keep their initials.</p>
-      <Options label="Look for new versions" value={settings.update_check === "off" ? "off" : "on"} onChange={(v) => void setSetting("update_check", v)} options={onOff} />
-      <p className={note}>A few times a day OpenWren downloads one small public file that says which version is the newest, and tells you when yours is older. The request carries nothing about you or this computer.</p>
-      <Options label="Anonymous usage count" value={settings.usage_stats === "on" ? "on" : "off"} onChange={(v) => void setSetting("usage_stats", v)} options={onOff} />
-      <p className={note}>Once a day OpenWren tells the project that one more copy is in use. Knowing that people rely on it is what motivates the maintainer to keep the code maintained in the long term. It is sent only if you switch it on. The request carries no name, address, mail or identifier, and the server keeps only totals.</p>
-      <div className="mb-1 font-semibold">Blocked senders</div>
-      <p className="mb-2 text-[13px] text-ink2">
-        Mail from these senders goes straight to Junk, without a notification. To block someone, right-click one of their messages and choose "Block sender". OpenWren does the moving, so it happens while OpenWren is running.
-      </p>
+      <Options label={tr("privacyPage.trackers")} value={settings.block_trackers === "off" ? "off" : "on"} onChange={(v) => void setSetting("block_trackers", v)} options={onOff} />
+      <p className={note}>{tr("privacyPage.trackersNote")}</p>
+      <Options label={tr("privacyPage.warn")} value={settings.phishing_warnings === "off" ? "off" : "on"} onChange={(v) => void setSetting("phishing_warnings", v)} options={onOff} />
+      <p className={note}>{tr("privacyPage.warnNote")}</p>
+      <Options label={tr("privacyPage.logos")} value={settings.brand_logos === "off" ? "off" : "on"} onChange={(v) => void setSetting("brand_logos", v)} options={onOff} />
+      <p className={note}>{tr("privacyPage.logosNote")}</p>
+      <Options label={tr("privacyPage.updates")} value={settings.update_check === "off" ? "off" : "on"} onChange={(v) => void setSetting("update_check", v)} options={onOff} />
+      <p className={note}>{tr("privacyPage.updatesNote")}</p>
+      <Options label={tr("privacyPage.usage")} value={settings.usage_stats === "on" ? "on" : "off"} onChange={(v) => void setSetting("usage_stats", v)} options={onOff} />
+      <p className={note}>{tr("privacyPage.usageNote")}</p>
+      <div className="mb-1 font-semibold">{tr("privacyPage.blockedTitle")}</div>
+      <p className="mb-2 text-[13px] text-ink2">{tr("privacyPage.blockedNote")}</p>
       {blockedList.length === 0 ? (
-        <p className="mb-4 text-[13px] text-ink3">Nobody is blocked.</p>
+        <p className="mb-4 text-[13px] text-ink3">{tr("privacyPage.nobodyBlocked")}</p>
       ) : (
         <div className="mb-4 rounded-[10px] border border-edge">
           {blockedList.map((entry) => (
             <div key={entry} className="flex items-center gap-2 border-b border-edge px-3 py-1.5 last:border-b-0">
-              <span className="selectable min-w-0 flex-1 truncate">{entry.startsWith("@") ? `Everyone at ${entry.slice(1)}` : entry}</span>
+              <span className="selectable min-w-0 flex-1 truncate">{entry.startsWith("@") ? tr("privacyPage.everyoneAt", { domain: entry.slice(1) }) : entry}</span>
               <Button className="h-7" onClick={() => void setSetting("blocked_senders", JSON.stringify(blockedList.filter((e) => e !== entry)))}>
-                Unblock
+                {tr("privacyPage.unblock")}
               </Button>
             </div>
           ))}
         </div>
       )}
-      <div className="mb-1 font-semibold">Senders whose images are always shown</div>
-      <p className="mb-2 text-[13px] text-ink2">Pictures from the internet load without asking for these senders. Add one with "Always from this sender" above a message.</p>
+      <div className="mb-1 font-semibold">{tr("privacyPage.imagesTitle")}</div>
+      <p className="mb-2 text-[13px] text-ink2">{tr("privacyPage.imagesNote")}</p>
       {imageList.length === 0 ? (
-        <p className="mb-4 text-[13px] text-ink3">No senders yet.</p>
+        <p className="mb-4 text-[13px] text-ink3">{tr("privacyPage.noSenders")}</p>
       ) : (
         <div className="mb-4 rounded-[10px] border border-edge">
           {imageList.map((address) => (
             <div key={address} className="flex items-center gap-2 border-b border-edge px-3 py-1.5 last:border-b-0">
               <span className="selectable min-w-0 flex-1 truncate">{address}</span>
               <Button className="h-7" onClick={() => void setSetting("image_senders", JSON.stringify(imageList.filter((a) => a !== address)))}>
-                Remove
+                {tr("privacyPage.remove")}
               </Button>
             </div>
           ))}
         </div>
       )}
-      <p className="text-[13px] text-ink2">Always on: the mail database is encrypted, passwords stay in the system's password store, and pictures from the internet are loaded only when you ask.</p>
+      <p className="text-[13px] text-ink2">{tr("privacyPage.alwaysOn")}</p>
     </>
   );
 }
