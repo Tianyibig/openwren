@@ -554,6 +554,9 @@ export const MESSAGES: Record<string, { en: string; zh: string }> = {
   "rules.ranNoMatch": { en: "{checked} messages looked at; none matched.", zh: "查看了 {checked} 封邮件，没有匹配的。" },
   "rules.ranMatched": { en: "{checked} messages looked at; {matched} matched.", zh: "查看了 {checked} 封邮件，其中 {matched} 封匹配。" },
 
+  "list.attachmentHit": { en: "Found inside an attachment, not in the mail itself", zh: "匹配来自附件内容，不在邮件正文里" },
+  "list.attachmentHitShort": { en: "in file", zh: "附件中" },
+
   "list.threads": { en: "Conversations", zh: "按会话" },
   "list.threadsHint": { en: "Fold the messages of one conversation into a single row", zh: "把同一会话的邮件折叠成一行" },
   "list.expandThread": { en: "Show the messages in this conversation", zh: "展开这个会话" },

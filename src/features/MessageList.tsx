@@ -123,6 +123,12 @@ function Row({
             {m.categories.map((c) => (
               <CategoryDot key={c} name={c} />
             ))}
+            {/* The word was not in the mail itself: say where it was found. */}
+            {m.attachmentHit && (
+              <span title={tr("list.attachmentHit")} className="flex-none rounded bg-canvas px-1.5 text-[11px] text-ink2">
+                {tr("list.attachmentHitShort")}
+              </span>
+            )}
             {m.hasAttachment && <IconPaperclip size={14} stroke={1.6} />}
             {m.flagged && <IconFlag size={14} className="text-danger" />}
             {m.pinned && <IconPin size={14} className="text-brand" />}
