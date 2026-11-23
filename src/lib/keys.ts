@@ -9,3 +9,13 @@ export function mod(e: { ctrlKey: boolean; metaKey: boolean }): boolean {
 
 /** How that key is written in hints: "⌘" or "Ctrl". */
 export const MOD = isMac ? "⌘" : "Ctrl";
+
+/**
+ * True while an input method is still composing a character. Keys pressed to pick a
+ * candidate belong to the method, not to the app: Enter picks one, the arrows move
+ * between them, and no shortcut may fire in the middle of that. `keyCode` 229 is what
+ * older web views report instead of `isComposing`.
+ */
+export function composing(e: { isComposing?: boolean; keyCode?: number }): boolean {
+  return e.isComposing === true || e.keyCode === 229;
+}

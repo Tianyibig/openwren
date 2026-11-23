@@ -6,6 +6,8 @@ import type { AppInfo, StorageInfo } from "../backend";
 import { RichText } from "../components/RichText";
 import { Button, Chip, IconButton, categories, fieldBox, fieldCaption } from "../components/ui";
 import { TEXT_SIZES, fontChoice } from "../lib/font";
+import { LANGUAGES, language } from "../lib/i18n";
+import { useT } from "../lib/useTranslate";
 import { REPOSITORY, SPONSOR_PAGE, WEBSITE } from "../lib/links";
 import { pictureFromFile, signatureHtml } from "../lib/signature";
 import { useStore } from "../store";
@@ -15,15 +17,15 @@ import { statusText } from "./FolderPane";
 import { imageSenders } from "./HtmlBody";
 
 const pages: [SettingsPage, string, typeof IconBell][] = [
-  ["accounts", "Accounts", IconUserCircle],
-  ["signatures", "Signatures", IconSignature],
-  ["sync", "Sync and storage", IconCloudDownload],
-  ["appearance", "Appearance", IconPalette],
-  ["privacy", "Privacy", IconShieldLock],
-  ["rules", "Rules", IconFilter],
-  ["notifications", "Notifications", IconBell],
-  ["about", "About", IconInfoCircle],
-  ["sponsor", "Sponsor", IconHeart],
+  ["accounts", "settings.accounts", IconUserCircle],
+  ["signatures", "settings.signatures", IconSignature],
+  ["sync", "settings.sync", IconCloudDownload],
+  ["appearance", "settings.appearance", IconPalette],
+  ["privacy", "settings.privacy", IconShieldLock],
+  ["rules", "settings.rules", IconFilter],
+  ["notifications", "settings.notifications", IconBell],
+  ["about", "settings.about", IconInfoCircle],
+  ["sponsor", "settings.sponsor", IconHeart],
 ];
 
 function Problem({ text }: { text: string }) {
@@ -412,6 +414,7 @@ function WhereMailIsKept() {
   const [info, setInfo] = useState<StorageInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const tr = useT();
   useEffect(() => {
     backend
       .storageInfo()
@@ -435,21 +438,19 @@ function WhereMailIsKept() {
 
   return (
     <>
-      <div className={`${fieldCaption} mt-5`}>Where your mail is kept</div>
-      <p className="mb-2 text-[13px] text-ink2">The encrypted database is kept in this folder. Put it on another disk, or in a folder your backup already covers.</p>
+      <div className={`${fieldCaption} mt-5`}>{tr("storage.title")}</div>
+      <p className="mb-2 text-[13px] text-ink2">{tr("storage.note")}</p>
       <div className="mb-2 selectable break-all rounded-[10px] border border-edge px-3 py-2 text-[13px]">{info ? info.dir : "…"}</div>
       {info?.pending ? (
         <div className="mb-2 rounded-[10px] bg-canvas px-3 py-2 text-[13px] text-ink2">
-          <div>
-            Your mail will be moved to <span className="selectable break-all">{info.pending}</span> the next time OpenWren starts. Mail that arrives in between moves with it.
-          </div>
+          <div className="selectable break-all">{tr("storage.moveNotice", { dir: info.pending })}</div>
           <Button className="mt-2" onClick={() => void backend.restartNow()}>
-            Restart now
+            {tr("storage.restart")}
           </Button>
         </div>
       ) : (
         <Button onClick={() => void choose()} disabled={busy}>
-          {busy ? "Choosing…" : "Change folder…"}
+          {busy ? tr("storage.choosing") : tr("storage.change")}
         </Button>
       )}
       <Problem text={error} />
@@ -462,31 +463,30 @@ function Sync() {
   const accounts = useStore((s) => s.accounts);
   const progress = useStore((s) => s.progress);
   const setSetting = useStore((s) => s.setSetting);
+  const tr = useT();
   return (
     <>
       <Options
-        label="Keep message text on this computer"
+        label={tr("sync.keepText")}
         value={settings.body_days ?? "0"}
         onChange={(v) => void setSetting("body_days", v)}
         options={[
-          ["0", "All mail"],
-          ["730", "Last 2 years"],
-          ["365", "Last year"],
-          ["90", "Last 3 months"],
+          ["0", tr("sync.keepAll")],
+          ["730", tr("sync.keep2y")],
+          ["365", tr("sync.keep1y")],
+          ["90", tr("sync.keep3m")],
         ]}
       />
-      <p className="mb-4 text-[13px] text-ink2">
-        Sender, subject and date are always kept for all mail, so older messages stay searchable by those. Text of older messages is fetched when you open them or use "Search the server for more". Applies from the next sync; text already downloaded is kept.
-      </p>
+      <p className="mb-4 text-[13px] text-ink2">{tr("sync.keepNote")}</p>
       <WhereMailIsKept />
-      <div className={`${fieldCaption} mt-5`}>Sync status</div>
+      <div className={`${fieldCaption} mt-5`}>{tr("sync.status")}</div>
       {accounts.map((a) => (
         <div key={a.id} className="mb-2 rounded-[10px] border border-edge px-3 py-2">
           <div className="truncate">{a.address}</div>
-          <div className={`truncate text-xs ${progress[a.id]?.phase === "error" ? "text-danger" : "text-ink2"}`}>{statusText(progress[a.id]) || "Waiting…"}</div>
+          <div className={`truncate text-xs ${progress[a.id]?.phase === "error" ? "text-danger" : "text-ink2"}`}>{statusText(progress[a.id]) || tr("sync.waiting")}</div>
         </div>
       ))}
-      <Button onClick={() => void backend.syncNow()}>Sync now</Button>
+      <Button onClick={() => void backend.syncNow()}>{tr("sync.now")}</Button>
     </>
   );
 }
@@ -495,66 +495,73 @@ function Appearance() {
   const settings = useStore((s) => s.settings);
   const setSetting = useStore((s) => s.setSetting);
   const systemFont = useStore((s) => s.systemFont.family);
+  const tr = useT();
   return (
     <>
       <Options
-        label="Font"
+        label={tr("appearance.language")}
+        value={language(settings.language)}
+        onChange={(v) => void setSetting("language", v)}
+        options={LANGUAGES.map((l): [string, string] => [l.id, l.name])}
+      />
+      <Options
+        label={tr("appearance.font")}
         value={fontChoice(settings.font)}
         onChange={(v) => void setSetting("font", v)}
         options={[
           ["inter", "Inter"],
-          ["nunito", "Nunito (rounded)"],
-          ["system", systemFont ? `This computer's font (${systemFont})` : "This computer's font"],
+          ["nunito", tr("appearance.fontNunito")],
+          ["system", systemFont ? tr("appearance.fontSystemName", { name: systemFont }) : tr("appearance.fontSystem")],
         ]}
       />
-      <Options label="Text size" value={settings.text_size ?? "15"} onChange={(v) => void setSetting("text_size", v)} options={TEXT_SIZES} />
+      <Options label={tr("appearance.textSize")} value={settings.text_size ?? "15"} onChange={(v) => void setSetting("text_size", v)} options={TEXT_SIZES} />
       <Options
-        label="Time format"
+        label={tr("appearance.timeFormat")}
         value={settings.time_format === "12" ? "12" : "24"}
         onChange={(v) => void setSetting("time_format", v)}
         options={[
-          ["24", "24-hour (15:05)"],
-          ["12", "AM / PM (3:05 PM)"],
+          ["24", tr("appearance.time24")],
+          ["12", tr("appearance.time12")],
         ]}
       />
       <Options
-        label="Theme"
+        label={tr("appearance.theme")}
         value={settings.theme ?? "system"}
         onChange={(v) => void setSetting("theme", v)}
         options={[
-          ["system", "Match system"],
-          ["light", "Light"],
-          ["dark", "Dark"],
+          ["system", tr("appearance.themeSystem")],
+          ["light", tr("appearance.themeLight")],
+          ["dark", tr("appearance.themeDark")],
         ]}
       />
       <Options
-        label="Focused inbox"
+        label={tr("appearance.focused")}
         value={settings.focused_inbox === "off" ? "off" : "on"}
         onChange={(v) => void setSetting("focused_inbox", v)}
         options={[
-          ["on", "Split into Focused and Other"],
-          ["off", "One list"],
+          ["on", tr("appearance.focusedOn")],
+          ["off", tr("appearance.focusedOff")],
         ]}
       />
       <Options
-        label="Message list density"
+        label={tr("appearance.density")}
         value={settings.density ?? "cozy"}
         onChange={(v) => void setSetting("density", v)}
         options={[
-          ["roomy", "Roomy"],
-          ["cozy", "Cozy"],
-          ["compact", "Compact"],
+          ["roomy", tr("appearance.roomy")],
+          ["cozy", tr("appearance.cozy")],
+          ["compact", tr("appearance.compact")],
         ]}
       />
       <Options
-        label="Undo send"
+        label={tr("appearance.undoSend")}
         value={settings.undo_seconds ?? "10"}
         onChange={(v) => void setSetting("undo_seconds", v)}
         options={[
-          ["0", "Off"],
-          ["5", "5 seconds"],
-          ["10", "10 seconds"],
-          ["30", "30 seconds"],
+          ["0", tr("appearance.off")],
+          ["5", tr("appearance.seconds", { n: 5 })],
+          ["10", tr("appearance.seconds", { n: 10 })],
+          ["30", tr("appearance.seconds", { n: 30 })],
         ]}
       />
     </>
@@ -1004,6 +1011,7 @@ const content: Record<SettingsPage, () => React.ReactNode> = {
 export function Settings() {
   const page = useStore((s) => s.settingsPage);
   const setDialog = useStore((s) => s.setDialog);
+  const tr = useT();
   const close = () => setDialog(null);
   const Page = content[page];
   return (
@@ -1011,12 +1019,12 @@ export function Settings() {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Settings"
+        aria-label={tr("settings.title")}
         className="flex h-[560px] max-h-full w-[820px] max-w-full overflow-hidden rounded-[14px] border border-edge bg-card shadow-xl"
         onKeyDown={(e) => e.key === "Escape" && close()}
       >
-        <nav className="w-[210px] flex-none bg-canvas px-2 py-4" aria-label="Settings sections">
-          <div className="px-2 pb-3 text-lg font-semibold">Settings</div>
+        <nav className="w-[210px] flex-none bg-canvas px-2 py-4" aria-label={tr("settings.sections")}>
+          <div className="px-2 pb-3 text-lg font-semibold">{tr("settings.title")}</div>
           {pages.map(([id, name, Icon]) => (
             <button
               key={id}
@@ -1026,14 +1034,14 @@ export function Settings() {
               className={`flex w-full items-center gap-2 rounded-full px-3 py-1.5 text-left ${page === id ? "bg-sel" : "hover:bg-hover"}`}
             >
               <Icon size={18} className={id === "sponsor" ? "text-danger" : "text-ink2"} />
-              <span className={id === "sponsor" ? "text-danger" : undefined}>{name}</span>
+              <span className={id === "sponsor" ? "text-danger" : undefined}>{tr(name)}</span>
             </button>
           ))}
         </nav>
         <div className="min-w-0 flex-1 overflow-y-auto px-6 py-4">
           <div className="mb-3 flex items-center">
-            <h2 className="text-base font-semibold">{pages.find((p) => p[0] === page)?.[1]}</h2>
-            <IconButton label="Close settings" className="ml-auto" onClick={close}>
+            <h2 className="text-base font-semibold">{tr(pages.find((p) => p[0] === page)?.[1] ?? "")}</h2>
+            <IconButton label={tr("settings.close")} className="ml-auto" onClick={close}>
               <IconX size={20} />
             </IconButton>
           </div>
