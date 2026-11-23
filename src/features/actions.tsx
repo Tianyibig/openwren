@@ -16,6 +16,8 @@ const PERSONAL = /@(gmail|googlemail|outlook|hotmail|live|msn|yahoo|ymail|icloud
 import { backend, errorText } from "../backend";
 import { categories } from "../components/ui";
 import type { MenuItem } from "../components/ui";
+import { currentLanguage } from "../lib/currentLanguage";
+import { t } from "../lib/i18n";
 import { useStore } from "../store";
 import type { MessageSummary } from "../types";
 
@@ -28,10 +30,11 @@ export function snoozeTimes(now = new Date()): { label: string; at: number }[] {
   tomorrow.setHours(8, 0, 0, 0);
   const monday = new Date(tomorrow);
   while (monday.getDay() !== 1) monday.setDate(monday.getDate() + 1);
+  const tr = (key: string) => t(currentLanguage(), key);
   return [
-    { label: "In 3 hours", at: at(later) },
-    { label: "Tomorrow at 8:00", at: at(tomorrow) },
-    { label: "Monday at 8:00", at: at(monday) },
+    { label: tr("snooze.inThreeHours"), at: at(later) },
+    { label: tr("snooze.tomorrow"), at: at(tomorrow) },
+    { label: tr("snooze.monday"), at: at(monday) },
   ];
 }
 
