@@ -10,6 +10,7 @@ import type {
   MessageSummary,
   MoveTarget,
   NewAccount,
+  OutboxItem,
   Outgoing,
   Progress,
   Rule,
@@ -141,6 +142,10 @@ export interface Backend {
   deleteRule(id: number): Promise<void>;
   /** Run the rules over the mail already in the inboxes; null = every account. */
   applyRulesNow(accountId: number | null): Promise<RulesSweep>;
+  /** Messages written but not on the server yet. */
+  listOutbox(): Promise<OutboxItem[]>;
+  /** Try a queued message again now; false when it is no longer queued. */
+  retrySend(id: number): Promise<boolean>;
 
   /** The newer version found by the last check, if any. */
   updateStatus(): Promise<UpdateAvailable | null>;
@@ -233,6 +238,8 @@ const tauriBackend: Backend = {
   saveRule: (rule) => invoke("save_rule", { rule }),
   deleteRule: (id) => invoke("delete_rule", { id }),
   applyRulesNow: (accountId) => invoke("apply_rules_now", { accountId }),
+  listOutbox: () => invoke("list_outbox"),
+  retrySend: (id) => invoke("retry_send", { id }),
 
   updateStatus: () => invoke("update_status"),
   checkUpdate: () => invoke("check_update"),

@@ -996,6 +996,16 @@ fn list_outbox(state: State<'_, AppState>) -> Result<Vec<OutboxItem>> {
     db::list_outbox(&db::lock(&state.db))
 }
 
+/// Try a queued message again now instead of at its next retry.
+#[tauri::command]
+fn retry_send(state: State<'_, AppState>, id: i64) -> Result<bool> {
+    let retried = db::retry_outgoing(&db::lock(&state.db), id)?;
+    if retried {
+        state.outbox_wake.notify_one();
+    }
+    Ok(retried)
+}
+
 /// Put a copy of a sent message into the Sent folder. The connection kept from earlier
 /// may have been closed by the server while idle, so a failure is tried once more on a new one.
 async fn save_sent_copy(state: &AppState, account_id: i64, path: &str, raw: &[u8]) -> Result<()> {
@@ -1771,6 +1781,7 @@ pub fn run() {
             send_message,
             cancel_send,
             list_outbox,
+            retry_send,
             list_signatures,
             save_signature,
             delete_signature,

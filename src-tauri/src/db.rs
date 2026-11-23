@@ -672,6 +672,12 @@ pub fn fail_outgoing(conn: &Connection, id: i64, error: &str, retry_at: i64) -> 
     Ok(())
 }
 
+/// Try a queued message again now rather than at its next retry time. The attempt count is
+/// kept, so the list of what is waiting can still say how often it has failed.
+pub fn retry_outgoing(conn: &Connection, id: i64) -> Result<bool> {
+    Ok(conn.execute("UPDATE outbox SET send_after = 0 WHERE id = ?1", [id])? > 0)
+}
+
 pub fn list_outbox(conn: &Connection) -> Result<Vec<OutboxItem>> {
     let mut stmt = conn.prepare("SELECT id, account_id, to_list, subject, send_after, attempts, last_error FROM outbox ORDER BY send_after, id")?;
     let rows = stmt.query_map([], |r| {
@@ -1071,6 +1077,35 @@ mod tests {
             let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
         }
         (path, "0".repeat(64))
+    }
+
+    #[test]
+    fn a_queued_message_can_be_tried_again_now_and_keeps_its_history() {
+        let conn = crate::store::open_in_memory().unwrap();
+        let account = insert_account(&conn, "me@example.test", "Me", "imap", &AccountSettings::default()).unwrap();
+        let recipients = vec!["you@example.test".to_string()];
+        let id = queue_outgoing(&conn, account, b"raw", "me@example.test", &recipients, "you@example.test", "hello", 1_000).unwrap();
+        let due = |now: i64| due_outgoing(&conn, now).unwrap();
+
+        // Scheduled for later: not due yet.
+        assert!(due(999).is_empty());
+        assert_eq!(list_outbox(&conn).unwrap().len(), 1);
+        assert_eq!(list_outbox(&conn).unwrap()[0].subject, "hello");
+
+        // "Try now" makes it due at once, without touching the attempt count.
+        assert!(retry_outgoing(&conn, id).unwrap());
+        assert_eq!(due(0).len(), 1);
+
+        // A failure puts it back in the future, with a count the list can show.
+        fail_outgoing(&conn, id, "the outgoing server refused it", 5_000).unwrap();
+        assert!(due(999).is_empty());
+        assert_eq!(list_outbox(&conn).unwrap()[0].attempts, 1);
+        assert_eq!(list_outbox(&conn).unwrap()[0].last_error.as_deref(), Some("the outgoing server refused it"));
+
+        assert!(retry_outgoing(&conn, id).unwrap());
+        assert_eq!(due(0)[0].attempts, 1, "a manual retry does not hide how often it failed");
+        // Nothing queued under that id any more.
+        assert!(!retry_outgoing(&conn, id + 100).unwrap());
     }
 
     #[test]

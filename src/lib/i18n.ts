@@ -554,6 +554,22 @@ export const MESSAGES: Record<string, { en: string; zh: string }> = {
   "rules.ranNoMatch": { en: "{checked} messages looked at; none matched.", zh: "查看了 {checked} 封邮件，没有匹配的。" },
   "rules.ranMatched": { en: "{checked} messages looked at; {matched} matched.", zh: "查看了 {checked} 封邮件，其中 {matched} 封匹配。" },
 
+  "outbox.title": { en: "Waiting to be sent", zh: "待发送" },
+  "outbox.note": {
+    en: "These messages are written but not on the server yet: either they are scheduled for later, or a send failed and they are waiting for another try.",
+    zh: "这些邮件已经写好但还没发出去：要么安排了稍后发送，要么上次发送失败、正在等待重试。",
+  },
+  "outbox.empty": { en: "Nothing is waiting.", zh: "没有待发送的邮件。" },
+  "outbox.scheduled": { en: "Sending at {when}", zh: "计划 {when} 发送" },
+  "outbox.waiting": { en: "Waiting for another try", zh: "等待重试" },
+  "outbox.tried": { en: "tried {n} times", zh: "已尝试 {n} 次" },
+  "outbox.firstTry": { en: "not tried yet", zh: "尚未尝试" },
+  "outbox.error": { en: "Last error: {error}", zh: "上次错误：{error}" },
+  "outbox.retry": { en: "Try now", zh: "立即重试" },
+  "outbox.cancel": { en: "Cancel sending", zh: "取消发送" },
+  "outbox.cancelled": { en: "Removed from the queue.", zh: "已从发送队列中移除。" },
+  "outbox.retried": { en: "Trying it now.", zh: "正在重试。" },
+
   "error.auth": { en: "The mail server did not accept the password or authorisation code.", zh: "邮件服务器没有接受密码或授权码。" },
   "error.tls": { en: "The connection could not be encrypted the way this server expects. Check the port and the encryption choice.", zh: "无法按这台服务器要求的方式加密连接。请检查端口和加密方式。" },
   "error.network": { en: "The mail server did not answer. Check the connection and try again.", zh: "邮件服务器没有响应。请检查网络后重试。" },
