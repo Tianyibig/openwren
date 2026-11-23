@@ -543,6 +543,14 @@ export const MESSAGES: Record<string, { en: string; zh: string }> = {
   "onboard.preview.subject1": { en: "Event announcement content", zh: "活动通知内容" },
   "onboard.preview.subject2": { en: "Weekly digest", zh: "每周摘要" },
 
+  "error.auth": { en: "The mail server did not accept the password or authorisation code.", zh: "邮件服务器没有接受密码或授权码。" },
+  "error.tls": { en: "The connection could not be encrypted the way this server expects. Check the port and the encryption choice.", zh: "无法按这台服务器要求的方式加密连接。请检查端口和加密方式。" },
+  "error.network": { en: "The mail server did not answer. Check the connection and try again.", zh: "邮件服务器没有响应。请检查网络后重试。" },
+  "error.notFound": { en: "That message or folder is no longer on the server.", zh: "这封邮件或文件夹在服务器上已经不存在了。" },
+  "error.quota": { en: "The server refused it because the mailbox is full or the message is too large.", zh: "服务器因为邮箱已满或邮件过大而拒绝。" },
+  "error.server": { en: "The mail server refused the request.", zh: "邮件服务器拒绝了这次请求。" },
+  "error.other": { en: "Something went wrong.", zh: "出了问题。" },
+
   "images.hidden": { en: "Images from the internet are hidden to protect your privacy.", zh: "为了保护隐私，网络图片已被隐藏。" },
   "images.show": { en: "Show images", zh: "显示图片" },
   "images.alwaysFromSender": { en: "Always from this sender", zh: "始终显示此人发送的图片" },

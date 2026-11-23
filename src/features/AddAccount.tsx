@@ -1,7 +1,7 @@
 import { IconX } from "@tabler/icons-react";
 import { useState } from "react";
-import { backend, errorText } from "../backend";
-import { Button, Chip, IconButton, fieldBox, fieldCaption } from "../components/ui";
+import { backend } from "../backend";
+import { Button, Chip, ErrorNote, IconButton, fieldBox, fieldCaption } from "../components/ui";
 import { PROVIDERS, providerById, providerForAddress, type Provider } from "../lib/providers";
 import { useT } from "../lib/useTranslate";
 import { useStore } from "../store";
@@ -101,7 +101,7 @@ export function AddAccount() {
   // Gmail has two ways in. An app password works for everyone; Google sign-in needs the user's own client ID.
   const [googleWay, setGoogleWay] = useState<"password" | "oauth">("password");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>(null);
   const oauth = kind === "google" && googleWay === "oauth";
   // The preset to fill the server rows from: the one picked by hand, or the one the
   // address points at. Null and "" both mean "no preset", from different reasons.
@@ -114,7 +114,7 @@ export function AddAccount() {
   }
 
   function chooseProvider(value: string) {
-    setError("");
+    setError(null);
     if (value === "address") {
       setOverride(null);
       const preset = providerForAddress(address);
@@ -135,7 +135,7 @@ export function AddAccount() {
 
   function changeKind(next: Kind) {
     setKind(next);
-    setError("");
+    setError(null);
   }
 
   function changeAddress(value: string) {
@@ -160,7 +160,7 @@ export function AddAccount() {
       if (!incoming.host.trim()) return setError(tr("addAccount.enterIncoming"));
       if (!validPort(incoming) || (outgoing.host.trim() && !validPort(outgoing))) return setError(tr("addAccount.enterPort"));
     }
-    setError("");
+    setError(null);
     setBusy(true);
     try {
       if (oauth) {
@@ -189,7 +189,7 @@ export function AddAccount() {
       await refresh();
       close();
     } catch (err) {
-      setError(errorText(err));
+      setError(err);
     } finally {
       setBusy(false);
     }
@@ -302,7 +302,7 @@ export function AddAccount() {
             <input id="aa-app-password" type="password" value={password} placeholder="abcd efgh ijkl mnop" onChange={(e) => setPassword(e.target.value)} className={fieldBox} autoComplete="off" />
             <p className="mt-2 text-xs text-ink3">
               {tr("addAccount.appPasswordNote")}{" "}
-              <button type="button" className="underline hover:text-ink" onClick={() => (setGoogleWay("oauth"), setError(""))}>
+              <button type="button" className="underline hover:text-ink" onClick={() => (setGoogleWay("oauth"), setError(null))}>
                 {tr("addAccount.useGoogleSignIn")}
               </button>
             </p>
@@ -321,7 +321,7 @@ export function AddAccount() {
                 {tr("addAccount.oauthNeedsClientAfter")}
               </>
             )}{" "}
-            <button type="button" className="text-brand underline" onClick={() => (setGoogleWay("password"), setError(""))}>
+            <button type="button" className="text-brand underline" onClick={() => (setGoogleWay("password"), setError(null))}>
               {tr("addAccount.useAppPassword")}
             </button>
           </p>
@@ -335,11 +335,15 @@ export function AddAccount() {
           </>
         )}
 
-        {error && (
-          <p className="selectable mt-3 rounded-[10px] bg-canvas px-3 py-2 text-[13px] text-danger" role="alert">
-            {error}
-          </p>
-        )}
+        {error !== null &&
+          (typeof error === "string" ? (
+            // Something this dialog noticed itself: already a sentence in the right language.
+            <p className="selectable mt-3 rounded-[10px] bg-canvas px-3 py-2 text-[13px] text-danger" role="alert">
+              {error}
+            </p>
+          ) : (
+            <ErrorNote error={error} className="mt-3" />
+          ))}
 
         <div className="mt-4 flex justify-end gap-2">
           <Button onClick={close}>{tr("reader.cancel")}</Button>

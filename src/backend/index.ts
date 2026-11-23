@@ -251,9 +251,5 @@ const tauriBackend: Backend = {
 
 export const backend: Backend = isTauri() ? tauriBackend : sampleBackend;
 
-/** Rust errors arrive as plain strings; browser errors as Error objects. */
-export function errorText(e: unknown): string {
-  if (typeof e === "string") return e;
-  if (e instanceof Error) return e.message;
-  return "Something went wrong.";
-}
+/** Re-exported here because every screen imports it from the backend that raised it. */
+export { errorKind, errorText } from "../lib/errors";
