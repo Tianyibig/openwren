@@ -194,7 +194,34 @@ pub fn uid_set(uids: &[u32]) -> String {
 }
 
 pub async fn fetch(session: &mut Session, uids: &str, query: &str) -> Result<Vec<Fetch>> {
-    Ok(session.uid_fetch(uids, query).await?.try_collect().await?)
+    within(async { Ok(session.uid_fetch(uids, query).await?.try_collect().await?) }).await
+}
+
+/// Longest a single command may take. A server that stops answering in the middle of a
+/// command leaves the session in a state nobody knows, so the error says the connection
+/// is lost and the caller opens a new one rather than guessing.
+const COMMAND_TIMEOUT: Duration = Duration::from_secs(60);
+
+pub(crate) async fn within<T>(future: impl std::future::Future<Output = Result<T>>) -> Result<T> {
+    within_for(COMMAND_TIMEOUT, future).await
+}
+
+/// The same, with the wait given, so a test does not have to wait a minute.
+async fn within_for<T>(wait: Duration, future: impl std::future::Future<Output = Result<T>>) -> Result<T> {
+    match tokio::time::timeout(wait, future).await {
+        Ok(result) => result,
+        Err(_) => Err(Error(crate::error::LOST.to_string())),
+    }
+}
+
+/// `SELECT`, giving up if the server does not answer.
+pub async fn select(session: &mut Session, path: &str) -> Result<async_imap::types::Mailbox> {
+    within(async { Ok(session.select(path).await?) }).await
+}
+
+/// `UID SEARCH`, giving up if the server does not answer.
+pub async fn search(session: &mut Session, query: &str) -> Result<std::collections::HashSet<u32>> {
+    within(async { Ok(session.uid_search(query).await?) }).await
 }
 
 /// What to fetch for message flags. A mod-sequence from an earlier sync turns the
@@ -239,5 +266,25 @@ mod tests {
     fn flag_fetch_narrows_to_changed_since_when_a_modseq_is_known() {
         assert_eq!(flags_query(None), "(UID FLAGS)");
         assert_eq!(flags_query(Some(4711)), "(UID FLAGS) (CHANGEDSINCE 4711)");
+    }
+
+    #[tokio::test]
+    async fn a_command_that_never_answers_is_given_up_as_a_lost_connection() {
+        let never = async { std::future::pending::<Result<()>>().await };
+        let stopped = within_for(Duration::from_millis(20), never).await.unwrap_err();
+        assert!(stopped.lost(), "{}", stopped.0);
+    }
+
+    #[tokio::test]
+    async fn an_answer_arrives_as_it_is() {
+        let quick = async { Ok(42) };
+        assert_eq!(within_for(Duration::from_secs(1), quick).await.unwrap(), 42);
+    }
+
+    #[tokio::test]
+    async fn another_failure_is_not_called_a_lost_connection() {
+        let refused = async { Err::<(), _>(Error("The server did not accept the sign-in.".into())) };
+        let failed = within_for(Duration::from_secs(1), refused).await.unwrap_err();
+        assert!(!failed.lost(), "{}", failed.0);
     }
 }

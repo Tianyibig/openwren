@@ -7,6 +7,17 @@ use std::fmt::Display;
 #[derive(Debug)]
 pub struct Error(pub String);
 
+/// The message used when a server stops answering in the middle of a command. The
+/// session cannot be used again after that — what the server believes it was asked is
+/// unknown — so callers that would otherwise carry on reconnect instead.
+pub const LOST: &str = "The mail server stopped answering.";
+
+impl Error {
+    pub fn lost(&self) -> bool {
+        self.0.starts_with(LOST)
+    }
+}
+
 impl<E: Display> From<E> for Error {
     fn from(e: E) -> Self {
         Error(e.to_string())

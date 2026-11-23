@@ -242,15 +242,17 @@ async fn wait_for_news(mut session: Session, wake: &Notify) -> Result<Session> {
         tokio::select! { _ = tokio::time::sleep(POLL_EVERY) => {}, _ = wake.notified() => {} }
         return Ok(session);
     }
-    session.select("INBOX").await?;
+    imap::select(&mut session, "INBOX").await?;
     let mut handle = session.idle();
-    handle.init().await?;
+    // A connection that died while waiting would otherwise hold the sync forever: the
+    // DONE below is never answered, and nothing wakes this task again.
+    imap::within(async { Ok(handle.init().await?) }).await?;
     {
         let (wait, stop) = handle.wait_with_timeout(IDLE_FOR);
         tokio::select! { result = wait => { result?; }, _ = wake.notified() => {} }
         drop(stop);
     }
-    Ok(handle.done().await?)
+    imap::within(async { Ok(handle.done().await?) }).await
 }
 
 /// One connection's worth of syncing. Returns only on error.
@@ -824,10 +826,10 @@ async fn search_server(app: AppHandle, state: State<'_, AppState>, query: String
         let mut session = take_session(&state, account).await?;
         let folders = db::account_folders(&db::lock(&state.db), account)?;
         for (folder_id, path) in folders {
-            if session.select(&path).await.is_err() {
+            if imap::select(&mut session, &path).await.is_err() {
                 continue;
             }
-            let hits: Vec<u32> = session.uid_search(&criteria).await?.into_iter().collect();
+            let hits: Vec<u32> = imap::search(&mut session, &criteria).await?.into_iter().collect();
             let missing = db::without_body(&db::lock(&state.db), folder_id, &hits)?;
             for chunk in missing.chunks(20).take(10) {
                 sync::fetch_bodies(&state.db, &mut session, &path, chunk).await?;
@@ -1240,7 +1242,7 @@ fn set_sender_focus(app: AppHandle, state: State<'_, AppState>, id: i64, focused
 async fn fetch_raw(state: &AppState, id: i64) -> Result<Vec<u8>> {
     let location = db::location(&db::lock(&state.db), id)?.ok_or(Error("This message is still being moved. Try again in a moment.".into()))?;
     let mut session = take_session(state, location.account_id).await?;
-    session.select(&location.folder_path).await?;
+    imap::select(&mut session, &location.folder_path).await?;
     let fetched = imap::fetch(&mut session, &location.uid.to_string(), "(UID BODY.PEEK[])").await?;
     let raw = fetched.first().and_then(|f| f.body()).map(<[u8]>::to_vec);
     return_session(state, location.account_id, session).await;
