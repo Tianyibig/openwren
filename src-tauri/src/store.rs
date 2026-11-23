@@ -6,7 +6,9 @@
 use std::io::Read;
 use std::path::Path;
 
-use rusqlite::{Connection, Result};
+use rusqlite::{params, Connection, OptionalExtension, Result};
+
+use crate::cjk;
 
 /// Migrations in order. The database's `user_version` is the number applied.
 /// Never edit a released migration; append a new one.
@@ -20,6 +22,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0007_fast_folder_lists.sql"),
     include_str!("../migrations/0008_stricter_sender_checks.sql"),
     include_str!("../migrations/0009_picked_files_time.sql"),
+    include_str!("../migrations/0010_search_pairs.sql"),
 ];
 
 const PLAIN_HEADER: &[u8; 16] = b"SQLite format 3\0";
@@ -50,6 +53,7 @@ pub fn open(path: &Path, key: &str) -> Result<Connection> {
     conn.query_row("SELECT count(*) FROM sqlite_master", [], |_| Ok(()))?;
     conn.pragma_update(None, "journal_mode", "WAL")?;
     configure(&mut conn)?;
+    reindex_search(&mut conn)?;
     Ok(conn)
 }
 
@@ -82,7 +86,52 @@ fn encrypt_plain_file(path: &Path, key: &str) -> Result<()> {
 pub fn open_in_memory() -> Result<Connection> {
     let mut conn = Connection::open_in_memory()?;
     configure(&mut conn)?;
+    reindex_search(&mut conn)?;
     Ok(conn)
+}
+
+/// Rebuild the search index with the pairs that CJK text is indexed by, once. Everything
+/// it needs is already on disk — headers, and the bodies that were downloaded — so no
+/// server is contacted. Mail stored by an earlier version would otherwise stay indexed
+/// by the old scheme, where a sentence was one token.
+fn reindex_search(conn: &mut Connection) -> Result<()> {
+    const DONE: &str = "search_index_pairs";
+    let done: Option<String> = conn.query_row("SELECT value FROM settings WHERE key = ?1", [DONE], |r| r.get(0)).optional()?;
+    if done.as_deref() == Some("1") {
+        return Ok(());
+    }
+    let mut last = 0;
+    loop {
+        let batch: Vec<(i64, String, String, String, String, String, String)> = {
+            let mut stmt = conn.prepare(
+                "SELECT m.id, m.subject, m.from_name, m.from_address, m.to_list, m.cc_list, coalesce(b.plain, '')
+                   FROM messages m LEFT JOIN bodies b ON b.message_id = m.id
+                  WHERE m.id > ?1 ORDER BY m.id LIMIT 500",
+            )?;
+            let rows = stmt.query_map([last], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?)))?;
+            rows.collect::<Result<_>>()?
+        };
+        if batch.is_empty() {
+            break;
+        }
+        let tx = conn.transaction()?;
+        for (id, subject, from_name, from_address, to_list, cc_list, plain) in &batch {
+            tx.execute(
+                "INSERT OR REPLACE INTO search_index (rowid, subject, sender, recipients, body) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![
+                    id,
+                    cjk::expand(subject),
+                    cjk::expand(&format!("{from_name} {from_address}")),
+                    cjk::expand(&format!("{to_list} {cc_list}")),
+                    cjk::expand(plain)
+                ],
+            )?;
+        }
+        last = batch.last().map(|row| row.0).unwrap_or(last);
+        tx.commit()?;
+    }
+    conn.execute("INSERT INTO settings (key, value) VALUES (?1, '1') ON CONFLICT (key) DO UPDATE SET value = '1'", [DONE])?;
+    Ok(())
 }
 
 fn configure(conn: &mut Connection) -> Result<()> {
