@@ -206,6 +206,7 @@ function Signatures() {
   const defaults = useStore((s) => s.signatureDefaults);
   const accounts = useStore((s) => s.accounts);
   const loadPreferences = useStore((s) => s.loadPreferences);
+  const tr = useT();
   const [editing, setEditing] = useState<SavedSignature | null>(signatures[0] ?? null);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -272,7 +273,7 @@ function Signatures() {
   const add = () => {
     flush();
     void run(async () => {
-      const fresh: SavedSignature = { id: 0, name: "New signature", html: "", layout: "text", image: "" };
+      const fresh: SavedSignature = { id: 0, name: tr("signature.new"), html: "", layout: "text", image: "" };
       const id = await backend.saveSignature(fresh);
       await loadPreferences();
       latest.current = { ...fresh, id };
@@ -300,26 +301,26 @@ function Signatures() {
           </Chip>
         ))}
         <Button variant="ghost" className="h-7 text-brand" onClick={add}>
-          New signature
+          {tr("signature.new")}
         </Button>
       </div>
       {editing && (
         <>
           <label className={fieldCaption} htmlFor="sig-name">
-            Name
+            {tr("rules.name")}
           </label>
-          <input id="sig-name" className={fieldBox} value={editing.name} placeholder="Work" onChange={(e) => change({ name: e.target.value })} />
-          <div className={`${fieldCaption} mt-3`}>Signature</div>
+          <input id="sig-name" className={fieldBox} value={editing.name} placeholder={tr("signature.placeholder")} onChange={(e) => change({ name: e.target.value })} />
+          <div className={`${fieldCaption} mt-3`}>{tr("composer.signature")}</div>
           <div className="rounded-[10px] border border-edge p-2">
-            <RichText key={editing.id} label="Signature" className="h-36" initial={editing.html} onChange={(html) => html !== latest.current?.html && change({ html })} />
+            <RichText key={editing.id} label={tr("composer.signature")} className="h-36" initial={editing.html} onChange={(html) => html !== latest.current?.html && change({ html })} />
           </div>
-          <div className={`${fieldCaption} mt-3`}>Picture</div>
-          <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Signature layout">
+          <div className={`${fieldCaption} mt-3`}>{tr("signature.picture")}</div>
+          <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label={tr("signature.layout")}>
             {(
               [
-                ["text", "No picture"],
-                ["left", "Left of the text"],
-                ["above", "Above the text"],
+                ["text", tr("signature.noPicture")],
+                ["left", tr("signature.left")],
+                ["above", tr("signature.above")],
               ] as const
             ).map(([layout, name]) => (
               <Chip key={layout} on={editing.layout === layout} onClick={() => change({ layout })}>
@@ -329,7 +330,7 @@ function Signatures() {
             {editing.layout !== "text" && (
               <>
                 <label className="ml-2 inline-flex h-7 cursor-pointer items-center rounded-full border border-edge px-3 text-[13px] hover:bg-hover">
-                  {editing.image ? "Change image" : "Choose image"}
+                  {editing.image ? tr("signature.changeImage") : tr("signature.chooseImage")}
                   <input
                     type="file"
                     accept="image/png,image/jpeg,image/gif,image/webp"
@@ -340,13 +341,13 @@ function Signatures() {
                       if (!file) return;
                       pictureFromFile(file)
                         .then((image) => change({ image }))
-                        .catch(() => setError("That file could not be read as a picture."));
+                        .catch(() => setError(tr("signature.badImage")));
                     }}
                   />
                 </label>
                 {editing.image && (
                   <Button variant="ghost" className="h-7 text-ink2" onClick={() => change({ image: "" })}>
-                    Remove image
+                    {tr("signature.removeImage")}
                   </Button>
                 )}
               </>
@@ -354,17 +355,17 @@ function Signatures() {
           </div>
           {editing.layout !== "text" && (
             <>
-              <div className={`${fieldCaption} mt-3`}>Preview</div>
+              <div className={`${fieldCaption} mt-3`}>{tr("signature.preview")}</div>
               {editing.image ? (
                 <div className="rich selectable rounded-[10px] border border-dashed border-edge p-3" dangerouslySetInnerHTML={{ __html: signatureHtml(editing) }} />
               ) : (
-                <p className="text-[13px] text-ink2">Choose a picture, such as a logo or a photo. It is made small and sent inside each message, so people see it without having to load images.</p>
+                <p className="text-[13px] text-ink2">{tr("signature.pictureNote")}</p>
               )}
             </>
           )}
-          <div className={`${fieldCaption} mt-4`}>Add it automatically to</div>
+          <div className={`${fieldCaption} mt-4`}>{tr("signature.addTo")}</div>
           {accounts.length === 0 ? (
-            <p className="text-[13px] text-ink3">Add an account first.</p>
+            <p className="text-[13px] text-ink3">{tr("signature.addAccountFirst")}</p>
           ) : (
             <div className="divide-y divide-edge rounded-[10px] border border-edge">
               {accounts.map((a) => {
@@ -376,28 +377,28 @@ function Signatures() {
                   <div key={a.id} className="flex flex-wrap items-center gap-x-5 gap-y-1 px-3 py-2" role="group" aria-label={a.address}>
                     <div className="min-w-40 flex-1">
                       <div className="truncate">{a.address}</div>
-                      {other.length > 0 && <div className="text-xs text-ink3">Uses “{[...new Set(other)].join("” and “")}” otherwise</div>}
+                      {other.length > 0 && <div className="text-xs text-ink3">{tr("signature.usesOtherwise", { names: [...new Set(other)].join("” and “") })}</div>}
                     </div>
                     <label className="flex items-center gap-1.5 text-[13px]">
                       <input type="checkbox" className="size-4 accent-brand" checked={use.fresh} onChange={(e) => setUse(a.id, "newId", e.target.checked)} />
-                      New mail
+                      {tr("folder.newMail")}
                     </label>
                     <label className="flex items-center gap-1.5 text-[13px]">
                       <input type="checkbox" className="size-4 accent-brand" checked={use.reply} onChange={(e) => setUse(a.id, "replyId", e.target.checked)} />
-                      Replies and forwards
+                      {tr("signature.replies")}
                     </label>
                   </div>
                 );
               })}
             </div>
           )}
-          <p className="mt-1.5 text-xs text-ink3">While writing a message you can still pick another signature, or none.</p>
+          <p className="mt-1.5 text-xs text-ink3">{tr("signature.pickAnother")}</p>
           <div className="mt-3 flex items-center gap-2">
             <span className="text-[13px] text-ink3" role="status">
-              {saved ? "Saved" : "Changes are saved as you make them."}
+              {saved ? tr("signature.saved") : tr("signature.autoSaved")}
             </span>
             <Button variant="ghost" className="ml-auto text-danger" onClick={() => void remove()}>
-              <IconTrash size={16} /> Delete signature
+              <IconTrash size={16} /> {tr("signature.delete")}
             </Button>
           </div>
           <Problem text={error} />
