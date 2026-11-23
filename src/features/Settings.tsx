@@ -2,7 +2,7 @@ import { IconBell, IconCloudDownload, IconFilter, IconHeart, IconInfoCircle, Ico
 import { useEffect, useRef, useState } from "react";
 import logo from "../../src-tauri/icons/128x128.png";
 import { backend, errorText } from "../backend";
-import type { AppInfo } from "../backend";
+import type { AppInfo, StorageInfo } from "../backend";
 import { RichText } from "../components/RichText";
 import { Button, Chip, IconButton, categories, fieldBox, fieldCaption } from "../components/ui";
 import { TEXT_SIZES, fontChoice } from "../lib/font";
@@ -407,6 +407,56 @@ function Signatures() {
   );
 }
 
+/** Where the mail database lives, and how to move it somewhere else. */
+function WhereMailIsKept() {
+  const [info, setInfo] = useState<StorageInfo | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    backend
+      .storageInfo()
+      .then(setInfo)
+      .catch((e) => setError(errorText(e)));
+  }, []);
+
+  async function choose() {
+    if (busy) return;
+    setError("");
+    setBusy(true);
+    try {
+      // The move itself happens at the next start, so nothing written meanwhile is lost.
+      if (await backend.chooseStorageDir()) setInfo(await backend.storageInfo());
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <div className={`${fieldCaption} mt-5`}>Where your mail is kept</div>
+      <p className="mb-2 text-[13px] text-ink2">The encrypted database is kept in this folder. Put it on another disk, or in a folder your backup already covers.</p>
+      <div className="mb-2 selectable break-all rounded-[10px] border border-edge px-3 py-2 text-[13px]">{info ? info.dir : "…"}</div>
+      {info?.pending ? (
+        <div className="mb-2 rounded-[10px] bg-canvas px-3 py-2 text-[13px] text-ink2">
+          <div>
+            Your mail will be moved to <span className="selectable break-all">{info.pending}</span> the next time OpenWren starts. Mail that arrives in between moves with it.
+          </div>
+          <Button className="mt-2" onClick={() => void backend.restartNow()}>
+            Restart now
+          </Button>
+        </div>
+      ) : (
+        <Button onClick={() => void choose()} disabled={busy}>
+          {busy ? "Choosing…" : "Change folder…"}
+        </Button>
+      )}
+      <Problem text={error} />
+    </>
+  );
+}
+
 function Sync() {
   const settings = useStore((s) => s.settings);
   const accounts = useStore((s) => s.accounts);
@@ -428,7 +478,8 @@ function Sync() {
       <p className="mb-4 text-[13px] text-ink2">
         Sender, subject and date are always kept for all mail, so older messages stay searchable by those. Text of older messages is fetched when you open them or use "Search the server for more". Applies from the next sync; text already downloaded is kept.
       </p>
-      <div className={fieldCaption}>Sync status</div>
+      <WhereMailIsKept />
+      <div className={`${fieldCaption} mt-5`}>Sync status</div>
       {accounts.map((a) => (
         <div key={a.id} className="mb-2 rounded-[10px] border border-edge px-3 py-2">
           <div className="truncate">{a.address}</div>

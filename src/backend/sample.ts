@@ -459,6 +459,9 @@ export const sampleBackend: Backend = {
     return headers.join("\r\n") + "\r\n\r\n" + (m.html ?? m.plain);
   },
   markReady: async () => {},
+  storageInfo: async () => ({ dir: "/home/you/.local/share/org.openwren.app", defaultDir: "/home/you/.local/share/org.openwren.app", pending: null }),
+  chooseStorageDir: async () => null,
+  restartNow: async () => {},
   openPickedFile: async () => {},
   openAttachment: async () => {
     throw desktopOnly("Opening attachments");

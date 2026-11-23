@@ -14,6 +14,7 @@ pub mod sample_data;
 pub mod search;
 pub mod smtp;
 pub mod stats;
+pub mod storage;
 pub mod store;
 pub mod sync;
 pub mod updates;
@@ -63,12 +64,11 @@ fn mark_ready(app: AppHandle) {
 const OLD_KEYRING_SERVICE: &str = "OpenLook";
 const OLD_DATA_DIR: &str = "org.openlook.app";
 const OLD_DATABASE: &str = "openlook.db";
-const DATABASE: &str = "openwren.db";
 
 /// Move the data folder of the app's earlier name into place, database included.
 fn adopt_old_data(dir: &std::path::Path) {
     let Some(old) = dir.parent().map(|parent| parent.join(OLD_DATA_DIR)) else { return };
-    if dir.join(DATABASE).exists() || !old.join(OLD_DATABASE).exists() {
+    if dir.join(storage::DATABASE).exists() || !old.join(OLD_DATABASE).exists() {
         return;
     }
     // The new folder may already exist, empty or with nothing but web view files.
@@ -77,8 +77,15 @@ fn adopt_old_data(dir: &std::path::Path) {
         return;
     }
     for suffix in ["", "-wal", "-shm"] {
-        let _ = std::fs::rename(dir.join(format!("{OLD_DATABASE}{suffix}")), dir.join(format!("{DATABASE}{suffix}")));
+        let _ = std::fs::rename(dir.join(format!("{OLD_DATABASE}{suffix}")), dir.join(format!("{}{suffix}", storage::DATABASE)));
     }
+}
+
+/// Where the database lives, and the folder used while no other has been chosen.
+fn storage_layout(app: &AppHandle) -> Result<storage::Layout> {
+    let config = app.path().app_config_dir().map_err(|e| Error(format!("Could not find the app's configuration folder: {e}")))?;
+    let data = app.path().app_data_dir().map_err(|e| Error(format!("Could not find the app's data folder: {e}")))?;
+    Ok(storage::Layout::new(config.join("storage.json"), data))
 }
 
 /// Move one keyring entry from the app's earlier name to the current one.
@@ -344,11 +351,49 @@ fn app_info(app: AppHandle, state: State<'_, AppState>) -> Result<AppInfo> {
     Ok(AppInfo {
         version: app.package_info().version.to_string(),
         schema_version: store::schema_version(&conn)?,
-        data_dir: app.path().app_data_dir().map(|d| d.display().to_string()).unwrap_or_default(),
+        data_dir: storage_layout(&app).map(|layout| layout.data_dir().display().to_string()).unwrap_or_default(),
         cipher: conn.query_row("PRAGMA cipher_version", [], |r| r.get(0)).unwrap_or_default(),
         system_font,
         system_font_light,
     })
+}
+
+/// Where the mail is kept, and where it would be kept by default.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StorageInfo {
+    dir: String,
+    default_dir: String,
+    /// A folder the mail is to be moved to when OpenWren next starts.
+    pending: Option<String>,
+}
+
+#[tauri::command]
+fn storage_info(app: AppHandle) -> Result<StorageInfo> {
+    let layout = storage_layout(&app)?;
+    Ok(StorageInfo {
+        dir: layout.data_dir().display().to_string(),
+        default_dir: layout.default_dir.display().to_string(),
+        pending: layout.choice().move_to,
+    })
+}
+
+/// Ask for a folder and plan moving the mail there. The move itself happens at the next
+/// start, so nothing written in the meantime is lost.
+#[tauri::command]
+async fn choose_storage_dir(app: AppHandle) -> Result<Option<String>> {
+    use tauri_plugin_dialog::DialogExt;
+    let handle = app.clone();
+    let picked = tokio::task::spawn_blocking(move || handle.dialog().file().blocking_pick_folder()).await?;
+    let Some(folder) = picked.and_then(|p| p.into_path().ok()) else { return Ok(None) };
+    let target = storage_layout(&app)?.plan_move(&folder)?;
+    Ok(Some(target.display().to_string()))
+}
+
+/// Start OpenWren again, so a folder chosen for the mail takes effect.
+#[tauri::command]
+fn restart_now(app: AppHandle) {
+    app.restart()
 }
 
 #[tauri::command]
@@ -1596,8 +1641,12 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
-            let dir = app.path().app_data_dir()?;
-            adopt_old_data(&dir);
+            let layout = storage_layout(app.handle()).map_err(|e| e.0)?;
+            // The earlier name's folder is adopted first, so a move planned before it can
+            // carry the mail across too.
+            adopt_old_data(&layout.default_dir);
+            layout.finish_pending().map_err(|e| e.0)?;
+            let dir = layout.data_dir();
             std::fs::create_dir_all(&dir)?;
             let _ = std::fs::remove_dir(dir.join("raw")); // left empty by the removed POP3 support
             // Attachments opened last time were written out unencrypted: remove them.
@@ -1605,7 +1654,7 @@ pub fn run() {
                 let _ = std::fs::remove_dir_all(opened);
             }
             let _ = tokio_rustls::rustls::crypto::ring::default_provider().install_default();
-            let database = dir.join(DATABASE);
+            let database = dir.join(storage::DATABASE);
             let conn = store::open(&database, &database_key(&database)?)?;
             // Before any usage request: installations from before the count became a choice keep their setting.
             stats::keep_earlier_default(&conn).map_err(|e| e.0)?;
@@ -1712,7 +1761,10 @@ pub fn run() {
             pick_attachments,
             open_picked_file,
             open_attachment,
-            save_message
+            save_message,
+            storage_info,
+            choose_storage_dir,
+            restart_now
         ])
         .build(tauri::generate_context!())
         .expect("error while starting OpenWren")
