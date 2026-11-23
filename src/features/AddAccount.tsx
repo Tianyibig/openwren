@@ -2,6 +2,7 @@ import { IconX } from "@tabler/icons-react";
 import { useState } from "react";
 import { backend, errorText } from "../backend";
 import { Button, Chip, IconButton, fieldBox, fieldCaption } from "../components/ui";
+import { PROVIDERS, providerById, providerForAddress, type Provider } from "../lib/providers";
 import { useStore } from "../store";
 import type { Security, ServerSettings } from "../types";
 
@@ -90,12 +91,42 @@ export function AddAccount() {
   const [password, setPassword] = useState(remembered?.password ?? "");
   const [incoming, setIncoming] = useState<Server>(remembered?.incoming ?? { host: "", port: "993", security: "tls", edited: false });
   const [outgoing, setOutgoing] = useState<Server>(remembered?.outgoing ?? { host: "", port: "465", security: "tls", edited: false });
+  // Which provider's servers to fill in: null follows the typed address, "" means the
+  // user would rather type the servers, an id is a provider picked from the list.
+  const [override, setOverride] = useState<string | null>(null);
   remembered = { kind, address, name, password, incoming, outgoing };
   // Gmail has two ways in. An app password works for everyone; Google sign-in needs the user's own client ID.
   const [googleWay, setGoogleWay] = useState<"password" | "oauth">("password");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const oauth = kind === "google" && googleWay === "oauth";
+  // The preset to fill the server rows from: the one picked by hand, or the one the
+  // address points at. Null and "" both mean "no preset", from different reasons.
+  const provider: Provider | undefined = override === null ? providerForAddress(address) : override ? providerById(override) : undefined;
+
+  /** Fill the server rows from a preset. Picking one by hand replaces what is there. */
+  function fill(preset: Provider, force = false) {
+    if (force || !incoming.edited) setIncoming({ host: preset.imap.host, port: String(preset.imap.port), security: preset.imap.security, edited: false });
+    if (force || !outgoing.edited) setOutgoing({ host: preset.smtp.host, port: String(preset.smtp.port), security: preset.smtp.security, edited: false });
+  }
+
+  function chooseProvider(value: string) {
+    setError("");
+    if (value === "address") {
+      setOverride(null);
+      const preset = providerForAddress(address);
+      if (preset) fill(preset, true);
+      return;
+    }
+    if (value === "") {
+      // Keep the rows as they are: from here on they are what the user typed.
+      setOverride("");
+      return;
+    }
+    setOverride(value);
+    const preset = providerById(value);
+    if (preset) fill(preset, true);
+  }
 
   const close = () => setDialog(null);
 
@@ -106,6 +137,11 @@ export function AddAccount() {
 
   function changeAddress(value: string) {
     setAddress(value);
+    const preset = override === null ? providerForAddress(value) : undefined;
+    if (preset) {
+      fill(preset);
+      return;
+    }
     if (!incoming.edited) setIncoming((s) => ({ ...s, host: guessHost(value, "imap") }));
     if (!outgoing.edited) setOutgoing((s) => ({ ...s, host: guessHost(value, "smtp") }));
   }
@@ -117,7 +153,7 @@ export function AddAccount() {
     if (!user.includes("@")) return setError("Enter a full email address.");
     if (kind === "google" && !oauth && !password.trim()) return setError("Paste the app password you created in your Google account.");
     if (kind !== "google") {
-      if (!password) return setError("Enter the password for this account.");
+      if (!password) return setError(provider?.code ? "Paste the authorisation code from your mail provider." : "Enter the password for this account.");
       if (!incoming.host.trim()) return setError("Enter the incoming mail server.");
       if (!validPort(incoming) || (outgoing.host.trim() && !validPort(outgoing))) return setError("Enter a port between 1 and 65535.");
     }
@@ -140,7 +176,8 @@ export function AddAccount() {
         await backend.addAccount({
           address: user,
           displayName: name.trim(),
-          password,
+          // Providers that issue a code print it in groups of four; the servers want it joined.
+          password: provider?.code ? password.replace(/\s+/g, "") : password,
           imap: toSettings(incoming, user),
           smtp: outgoing.host.trim() ? toSettings(outgoing, user) : null,
         });
@@ -156,6 +193,8 @@ export function AddAccount() {
   }
 
   const insecure = kind !== "google" && (incoming.security === "none" || (outgoing.host.trim() !== "" && outgoing.security === "none"));
+  const setup = provider?.setup;
+  const link = provider?.setup.link;
   return (
     <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 p-4" onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <form
@@ -189,6 +228,38 @@ export function AddAccount() {
         </label>
         <input id="aa-address" type="email" autoFocus autoComplete="off" value={address} placeholder="name@company.com" className={fieldBox} onChange={(e) => changeAddress(e.target.value)} />
 
+        {kind !== "google" && (
+          <>
+            <label className={`${fieldCaption} mt-3`} htmlFor="aa-provider">
+              Mail provider <span className="text-ink3">(fills in its servers)</span>
+            </label>
+            <select id="aa-provider" className={fieldBox} value={override ?? "address"} onChange={(e) => chooseProvider(e.target.value)}>
+              <option value="address">Match the address automatically</option>
+              {PROVIDERS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+              <option value="">Set the servers myself</option>
+            </select>
+            {setup && (
+              <div className="mt-3 rounded-[10px] bg-canvas px-3.5 py-3 text-[13px] text-ink2">
+                <div className="mb-1.5 text-ink">{setup.title}</div>
+                <ol className="list-decimal space-y-1 pl-5">
+                  {setup.steps.map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ol>
+                {link && (
+                  <button type="button" className="mt-1.5 text-brand underline" onClick={() => void backend.openLink(link.url)}>
+                    {link.label}
+                  </button>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
         <div className={`mt-3 grid gap-3 ${kind === "google" ? "" : "grid-cols-2"}`}>
           {/* Gmail's password field sits below its instructions instead. */}
           <div>
@@ -200,7 +271,7 @@ export function AddAccount() {
           {kind !== "google" && (
             <div>
               <label className={fieldCaption} htmlFor="aa-password">
-                Password
+                {provider?.code ? "Authorisation code" : "Password"}
               </label>
               <input id="aa-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={fieldBox} autoComplete="off" />
             </div>
