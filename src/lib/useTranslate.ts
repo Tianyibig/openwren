@@ -2,13 +2,16 @@ import { useStore } from "../store";
 import { language, t } from "./i18n";
 import type { Lang } from "./i18n";
 
+/** What `useT` returns: turns a message key into text in the current language. */
+export type Translate = (key: string, vars?: Record<string, string | number>) => string;
+
 /** The language the interface is in, as chosen in Settings or as the desktop has it. */
 export function useLang(): Lang {
   return language(useStore((s) => s.settings.language));
 }
 
 /** A translator for the current language, for use while drawing a screen. */
-export function useT() {
+export function useT(): Translate {
   const lang = useLang();
   return (key: string, vars?: Record<string, string | number>) => t(lang, key, vars);
 }

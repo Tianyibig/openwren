@@ -56,6 +56,7 @@ function Accounts() {
   const accounts = useStore((s) => s.accounts);
   const progress = useStore((s) => s.progress);
   const settings = useStore((s) => s.settings);
+  const tr = useT();
   const { setSetting, setDialog, refresh } = useStore.getState();
   const [confirm, setConfirm] = useState<number | null>(null);
   const [error, setError] = useState("");
@@ -149,7 +150,7 @@ function Accounts() {
             <div className="selectable truncate">{a.address}</div>
             <div className="truncate text-xs text-ink2">
               {a.kind === "gmail" ? "Google" : "IMAP"}
-              {progress[a.id] && ` · ${statusText(progress[a.id])}`}
+              {progress[a.id] && ` · ${statusText(progress[a.id], tr)}`}
             </div>
             <div className="truncate text-xs text-ink2" title="Senders are confirmed only by this server's checks. It is learned from nearly all of the account's mail, or known for Gmail.">
               {a.authServer ? `Sender checks by ${a.authServer}` : "Sender checks: still learning which server makes them"}
@@ -483,7 +484,7 @@ function Sync() {
       {accounts.map((a) => (
         <div key={a.id} className="mb-2 rounded-[10px] border border-edge px-3 py-2">
           <div className="truncate">{a.address}</div>
-          <div className={`truncate text-xs ${progress[a.id]?.phase === "error" ? "text-danger" : "text-ink2"}`}>{statusText(progress[a.id]) || tr("sync.waiting")}</div>
+          <div className={`truncate text-xs ${progress[a.id]?.phase === "error" ? "text-danger" : "text-ink2"}`}>{statusText(progress[a.id], tr) || tr("sync.waiting")}</div>
         </div>
       ))}
       <Button onClick={() => void backend.syncNow()}>{tr("sync.now")}</Button>
