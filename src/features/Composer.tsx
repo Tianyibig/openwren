@@ -8,6 +8,7 @@ import { signatureHtml } from "../lib/signature";
 import { useStore } from "../store";
 import type { Contact, Draft } from "../types";
 import { composing, mod } from "../lib/keys";
+import { useT } from "../lib/useTranslate";
 
 const field = "flex items-center gap-3 border-b border-edge py-2";
 const label = "w-16 flex-none text-ink2";
@@ -95,6 +96,7 @@ export function Composer({ className }: { className: string }) {
   const send = useStore((s) => s.send);
   const saveDraft = useStore((s) => s.saveDraft);
   const deleteDraft = useStore((s) => s.deleteDraft);
+  const tr = useT();
 
   const [accountId, setAccountId] = useState(draft.accountId);
   const [to, setTo] = useState(draft.to);
@@ -176,7 +178,7 @@ export function Composer({ className }: { className: string }) {
 
   async function submit(sendAt?: number) {
     if (busy) return;
-    if (![to, cc, bcc].some((v) => v.trim())) return setError("Add at least one recipient.");
+    if (![to, cc, bcc].some((v) => v.trim())) return setError(tr("composer.noRecipient"));
     setError("");
     setBusy(true);
     try {
@@ -208,7 +210,7 @@ export function Composer({ className }: { className: string }) {
   return (
     <section
       className={`${className} flex flex-col px-5 py-4`}
-      aria-label="New message"
+      aria-label={tr("composer.newMessage")}
       onKeyDown={(e) => {
         if (composing(e)) return;
         if (mod(e) && e.key === "Enter") void submit();
@@ -217,23 +219,23 @@ export function Composer({ className }: { className: string }) {
       <div className="mb-1.5 flex items-center gap-2">
         <Button variant="primary" onClick={() => void submit()}>
           <IconSend size={18} />
-          {busy ? "Sending…" : "Send"}
+          {busy ? tr("composer.sending") : tr("composer.send")}
         </Button>
         <Menu
-          label="Send later"
+          label={tr("composer.sendLater")}
           button={
             <span className="flex items-center gap-1 px-1 text-[13px]">
-              <IconClock size={18} /> Send later
+              <IconClock size={18} /> {tr("composer.sendLater")}
             </span>
           }
           items={[
-            { label: "Tomorrow at 8:00", onSelect: () => void submit(morning(null)) },
-            { label: "Monday at 8:00", onSelect: () => void submit(morning(1)) },
+            { label: tr("snooze.tomorrow"), onSelect: () => void submit(morning(null)) },
+            { label: tr("snooze.monday"), onSelect: () => void submit(morning(1)) },
           ]}
         />
         <input
           type="datetime-local"
-          aria-label="Send at a chosen time"
+          aria-label={tr("composer.sendAt")}
           value={later}
           onChange={(e) => setLater(e.target.value)}
           className="h-8 rounded-lg border border-edge bg-card px-2 text-[13px] text-ink2"
@@ -243,23 +245,23 @@ export function Composer({ className }: { className: string }) {
             className="h-8"
             onClick={() => {
               const at = Math.floor(new Date(later).getTime() / 1000);
-              if (at * 1000 <= Date.now()) setError("Choose a time in the future.");
+              if (at * 1000 <= Date.now()) setError(tr("composer.futureTime"));
               else void submit(at);
             }}
           >
-            Schedule
+            {tr("composer.schedule")}
           </Button>
         )}
         <span className="ml-auto text-xs text-ink3" role="status">
-          {saved ? "Draft saved" : ""}
+          {saved ? tr("composer.draftSaved") : ""}
         </span>
-        <IconButton label="Discard draft" onClick={() => void discard()}>
+        <IconButton label={tr("composer.discard")} onClick={() => void discard()}>
           <IconTrash size={20} />
         </IconButton>
       </div>
 
       <label className={field}>
-        <span className={label}>From</span>
+        <span className={label}>{tr("composer.from")}</span>
         <select value={accountId} onChange={(e) => edited(setAccountId)(Number(e.target.value))} className={input}>
           {accounts.map((a) => (
             <option key={a.id} value={a.id}>
@@ -269,19 +271,19 @@ export function Composer({ className }: { className: string }) {
         </select>
         {!showCopies && (
           <button type="button" className="flex-none text-ink2 hover:text-ink" onClick={() => setShowCopies(true)}>
-            Cc Bcc
+            {tr("composer.showCopies")}
           </button>
         )}
       </label>
-      <Recipients name="To" value={to} onChange={edited(setTo)} autoFocus={draft.to === ""} />
+      <Recipients name={tr("composer.to")} value={to} onChange={edited(setTo)} autoFocus={draft.to === ""} />
       {showCopies && (
         <>
-          <Recipients name="Cc" value={cc} onChange={edited(setCc)} />
-          <Recipients name="Bcc" value={bcc} onChange={edited(setBcc)} />
+          <Recipients name={tr("composer.cc")} value={cc} onChange={edited(setCc)} />
+          <Recipients name={tr("composer.bcc")} value={bcc} onChange={edited(setBcc)} />
         </>
       )}
       <label className={field}>
-        <span className={label}>Subject</span>
+        <span className={label}>{tr("composer.subject")}</span>
         <input value={subject} onChange={(e) => edited(setSubject)(e.target.value)} className={input} />
       </label>
 
@@ -293,7 +295,7 @@ export function Composer({ className }: { className: string }) {
 
       <RichText
         className="mt-2.5 min-h-40 flex-1"
-        label="Message"
+        label={tr("composer.message")}
         initial={draft.html}
         autoFocus={draft.to !== ""}
         onChange={(value) => {
@@ -304,18 +306,18 @@ export function Composer({ className }: { className: string }) {
         toolbarEnd={
           <>
             <button type="button" onClick={() => void attach()} className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[13px] text-ink2 hover:bg-hover">
-              <IconPaperclip size={16} /> Attach
+              <IconPaperclip size={16} /> {tr("composer.attach")}
             </button>
             <label className="flex items-center gap-1 text-[13px] text-ink2">
               <IconSignature size={16} />
-              <span className="sr-only">Signature</span>
+              <span className="sr-only">{tr("composer.signature")}</span>
               <select
                 value={signatureId ?? ""}
                 onChange={(e) => setSignatureId(e.target.value ? Number(e.target.value) : null)}
                 className="bg-transparent text-ink outline-none"
-                aria-label="Signature"
+                aria-label={tr("composer.signature")}
               >
-                <option value="">No signature</option>
+                <option value="">{tr("composer.noSignature")}</option>
                 {signatures.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
@@ -328,16 +330,16 @@ export function Composer({ className }: { className: string }) {
       />
 
       {signature && <div className="rich selectable mt-2 flex-none border-t border-dashed border-edge pt-2.5 text-ink2" dangerouslySetInnerHTML={{ __html: signatureHtml(signature) }} />}
-      {draft.quote && <p className="mt-2 flex-none text-xs text-ink3">The original message is included below your text.</p>}
+      {draft.quote && <p className="mt-2 flex-none text-xs text-ink3">{tr("composer.quoteBelow")}</p>}
       {(files.length > 0 || forwarded.length > 0) && (
         <div className="mt-3 flex flex-none flex-wrap gap-2">
           {forwarded.map((item) => (
-            <span key={`fw-${item.index}`} className="inline-flex items-center gap-1.5 rounded-[10px] border border-edge py-1 pr-1 pl-2.5 text-ink2" title="From the forwarded message">
+            <span key={`fw-${item.index}`} className="inline-flex items-center gap-1.5 rounded-[10px] border border-edge py-1 pr-1 pl-2.5 text-ink2" title={tr("composer.forwardedFile")}>
               <IconPaperclip size={15} />
               {item.name}
               <span className="text-xs text-ink3">{fileSize(item.size)}</span>
               <IconButton
-                label={`Remove ${item.name}`}
+                label={tr("composer.removeFile", { name: item.name })}
                 className="size-6"
                 onClick={() => {
                   setForwarded((all) => all.filter((x) => x.index !== item.index));
@@ -353,13 +355,13 @@ export function Composer({ className }: { className: string }) {
               <button
                 type="button"
                 className="inline-flex items-center gap-1.5 hover:text-ink hover:underline"
-                title={`Open ${path}`}
+                title={tr("reader.openFile", { name: path })}
                 onClick={() => void backend.openPickedFile(path).catch((e) => setError(errorText(e)))}
               >
                 <IconPaperclip size={15} />
                 {path.split(/[\\/]/).pop()}
               </button>
-              <IconButton label="Remove attachment" className="size-6" onClick={() => {
+              <IconButton label={tr("composer.removeAttachment")} className="size-6" onClick={() => {
                   setFiles((f) => f.filter((p) => p !== path));
                   touch();
                 }}>
