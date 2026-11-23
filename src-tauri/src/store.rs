@@ -52,8 +52,22 @@ pub fn open(path: &Path, key: &str) -> Result<Connection> {
     // A wrong key only shows when the file is first read.
     conn.query_row("SELECT count(*) FROM sqlite_master", [], |_| Ok(()))?;
     conn.pragma_update(None, "journal_mode", "WAL")?;
+    // With readers around, a checkpoint can find the file busy for a moment.
+    conn.busy_timeout(std::time::Duration::from_secs(5))?;
     configure(&mut conn)?;
     reindex_search(&mut conn)?;
+    Ok(conn)
+}
+
+/// Open another connection to a database the writer has already opened. Nothing is
+/// migrated or indexed here: a reader only ever looks.
+pub fn open_reader(path: &Path, key: &str) -> Result<Connection> {
+    let conn = Connection::open(path)?;
+    conn.execute_batch(&format!("PRAGMA key = {};", key_literal(key)?))?;
+    // A wrong key only shows when the file is first read.
+    conn.query_row("SELECT count(*) FROM sqlite_master", [], |_| Ok(()))?;
+    conn.pragma_update(None, "foreign_keys", "ON")?;
+    conn.busy_timeout(std::time::Duration::from_secs(5))?;
     Ok(conn)
 }
 

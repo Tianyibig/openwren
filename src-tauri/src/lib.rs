@@ -107,9 +107,14 @@ const HEADER_INFO_PER_ROUND: u32 = 4000;
 const RETRY_AFTER: Duration = Duration::from_secs(30);
 const IDLE_FOR: Duration = Duration::from_secs(20 * 60);
 const POLL_EVERY: Duration = Duration::from_secs(120);
+/// Connections kept for queries, so a sync writing a batch cannot hold up a list or a
+/// search. Two is enough for the screens: one query at a time per pane.
+const READERS: usize = 2;
 
 pub struct AppState {
     db: Db,
+    /// Only ever read. `db` stays the one connection everything is written through.
+    readers: db::Readers,
     /// One spare connection per account for things the user is waiting on
     /// (opening a message, changing a flag). Background sync has its own.
     interactive: tokio::sync::Mutex<HashMap<i64, Session>>,
@@ -300,6 +305,17 @@ fn spawn_account(app: AppHandle, account_id: i64) {
 
 // ---------- commands ----------
 
+/// A connection for a query: one of the readers, or the writing one when none could be
+/// opened. Lists, searches and opening a message go through this, so a sync writing a
+/// batch does not hold them up.
+fn reader<'a>(state: &'a AppState) -> Result<std::sync::MutexGuard<'a, rusqlite::Connection>> {
+    if state.readers.count() == 0 {
+        Ok(db::lock(&state.db))
+    } else {
+        state.readers.check_out()
+    }
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct AppInfo {
@@ -400,7 +416,8 @@ fn restart_now(app: AppHandle) {
 
 #[tauri::command]
 fn list_accounts(state: State<'_, AppState>) -> Result<Vec<Account>> {
-    db::list_accounts(&db::lock(&state.db))
+    let conn = reader(&state)?;
+    db::list_accounts(&conn)
 }
 
 /// Put the accounts in the order the user chose; the sidebar and Settings list them so.
@@ -411,7 +428,8 @@ fn reorder_accounts(state: State<'_, AppState>, ids: Vec<i64>) -> Result<()> {
 
 #[tauri::command]
 fn list_folders(state: State<'_, AppState>) -> Result<Vec<Folder>> {
-    db::list_folders(&db::lock(&state.db))
+    let conn = reader(&state)?;
+    db::list_folders(&conn)
 }
 
 /// Mark every message of a folder as read; -1 means the inboxes of all accounts.
@@ -491,7 +509,8 @@ fn save_draft(app: AppHandle, state: State<'_, AppState>, id: Option<i64>, accou
 
 #[tauri::command]
 fn list_drafts(state: State<'_, AppState>) -> Result<Vec<LocalDraft>> {
-    db::list_drafts(&db::lock(&state.db))
+    let conn = reader(&state)?;
+    db::list_drafts(&conn)
 }
 
 /// Delete a draft here and on the server (when it is sent or discarded).
@@ -639,17 +658,20 @@ async fn unsubscribe(app: AppHandle, state: State<'_, AppState>, id: i64) -> Res
 
 #[tauri::command]
 fn list_messages(state: State<'_, AppState>, folder_id: i64, focused: Option<bool>, limit: u32, offset: u32, only: Option<String>) -> Result<Vec<MessageSummary>> {
-    db::list_filtered(&db::lock(&state.db), folder_id, focused, only.as_deref(), limit.min(500), offset, now())
+    let conn = reader(&state)?;
+    db::list_filtered(&conn, folder_id, focused, only.as_deref(), limit.min(500), offset, now())
 }
 
 #[tauri::command]
 fn list_pinned(state: State<'_, AppState>, folder_id: i64, focused: Option<bool>) -> Result<Vec<MessageSummary>> {
-    db::list_pinned(&db::lock(&state.db), folder_id, focused)
+    let conn = reader(&state)?;
+    db::list_pinned(&conn, folder_id, focused)
 }
 
 #[tauri::command]
 fn search_messages(state: State<'_, AppState>, query: String, filters: SearchFilters) -> Result<Vec<MessageSummary>> {
-    db::search(&db::lock(&state.db), &query, &filters, chrono::Utc::now(), 300)
+    let conn = reader(&state)?;
+    db::search(&conn, &query, &filters, chrono::Utc::now(), 300)
 }
 
 /// A message with its body. Fetches the body from the server the first time.
@@ -665,7 +687,8 @@ async fn get_message(state: State<'_, AppState>, id: i64) -> Result<MessageDetai
         sync::ensure_body(&state.db, &mut session, id).await?;
         return_session(&state, location.account_id, session).await;
     }
-    db::message_detail(&db::lock(&state.db), id)
+    let conn = reader(&state)?;
+    db::message_detail(&conn, id)
 }
 
 /// Change read, flagged or pinned. Applied locally first, then sent to the server.
@@ -786,7 +809,8 @@ fn undo_moves(app: AppHandle, state: State<'_, AppState>, ops: Vec<i64>) -> Resu
 
 #[tauri::command]
 fn thread_messages(state: State<'_, AppState>, id: i64) -> Result<Vec<MessageSummary>> {
-    db::thread_messages(&db::lock(&state.db), id)
+    let conn = reader(&state)?;
+    db::thread_messages(&conn, id)
 }
 
 #[tauri::command]
@@ -1065,7 +1089,8 @@ async fn outbox_worker(app: AppHandle) {
 
 #[tauri::command]
 fn list_signatures(state: State<'_, AppState>) -> Result<Vec<Signature>> {
-    db::list_signatures(&db::lock(&state.db))
+    let conn = reader(&state)?;
+    db::list_signatures(&conn)
 }
 
 #[tauri::command]
@@ -1091,7 +1116,8 @@ fn delete_signature(state: State<'_, AppState>, id: i64) -> Result<()> {
 
 #[tauri::command]
 fn signature_defaults(state: State<'_, AppState>) -> Result<Vec<SignatureDefaults>> {
-    db::signature_defaults(&db::lock(&state.db))
+    let conn = reader(&state)?;
+    db::signature_defaults(&conn)
 }
 
 #[tauri::command]
@@ -1101,7 +1127,8 @@ fn set_signature_defaults(state: State<'_, AppState>, defaults: SignatureDefault
 
 #[tauri::command]
 fn suggest_contacts(state: State<'_, AppState>, typed: String) -> Result<Vec<Contact>> {
-    db::suggest_contacts(&db::lock(&state.db), &typed, 8)
+    let conn = reader(&state)?;
+    db::suggest_contacts(&conn, &typed, 8)
 }
 
 /// Wake every account's background task so it syncs now.
@@ -1657,7 +1684,12 @@ pub fn run() {
             }
             let _ = tokio_rustls::rustls::crypto::ring::default_provider().install_default();
             let database = dir.join(storage::DATABASE);
-            let conn = store::open(&database, &database_key(&database)?)?;
+            let key = database_key(&database)?;
+            let conn = store::open(&database, &key)?;
+            // Readers opened after the writer, so the schema is in place and the file is
+            // known to open with this key. A reader that fails to open only means queries
+            // fall back to the writing connection.
+            let readers = db::Readers::new((0..READERS).filter_map(|_| store::open_reader(&database, &key).ok()).collect());
             // Before any usage request: installations from before the count became a choice keep their setting.
             stats::keep_earlier_default(&conn).map_err(|e| e.0)?;
             // Paths of files once chosen for attaching are a history of the user's files: keep them only while needed.
@@ -1670,6 +1702,7 @@ pub fn run() {
             }
             app.manage(AppState {
                 db: Arc::new(Mutex::new(conn)),
+                readers,
                 interactive: Default::default(),
                 wakers: Default::default(),
                 outbox_wake: Notify::new(),
