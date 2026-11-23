@@ -3,7 +3,7 @@ import { useState } from "react";
 import { backend } from "../backend";
 import { Button, Chip, ErrorNote, IconButton, fieldBox, fieldCaption } from "../components/ui";
 import { PROVIDERS, providerById, providerForAddress, type Provider } from "../lib/providers";
-import { useT } from "../lib/useTranslate";
+import { useLang, useT } from "../lib/useTranslate";
 import { useStore } from "../store";
 import type { Security, ServerSettings } from "../types";
 
@@ -84,6 +84,8 @@ export function AddAccount() {
   const refresh = useStore((s) => s.refresh);
   const hasGoogleClient = useStore((s) => (s.settings.google_client_id ?? "").trim() !== "");
   const tr = useT();
+  // The provider's instructions are written per language, not translated from a message key.
+  const lang = useLang();
   const [kind, setKind] = useState<Kind>(() => {
     const start = preferred ?? remembered?.kind ?? "imap";
     preferred = null;
@@ -196,8 +198,8 @@ export function AddAccount() {
   }
 
   const insecure = kind !== "google" && (incoming.security === "none" || (outgoing.host.trim() !== "" && outgoing.security === "none"));
-  const setup = provider?.setup;
-  const link = provider?.setup.link;
+  const setup = provider?.setup[lang];
+  const link = provider?.link;
   return (
     <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 p-4" onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <form
@@ -255,7 +257,7 @@ export function AddAccount() {
                 </ol>
                 {link && (
                   <button type="button" className="mt-1.5 text-brand underline" onClick={() => void backend.openLink(link.url)}>
-                    {link.label}
+                    {link[lang]}
                   </button>
                 )}
               </div>
