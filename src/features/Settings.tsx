@@ -12,7 +12,7 @@ import { REPOSITORY, SPONSOR_PAGE, WEBSITE } from "../lib/links";
 import { pictureFromFile, signatureHtml } from "../lib/signature";
 import { useStore } from "../store";
 import type { SettingsPage } from "../store";
-import type { Rule, SavedSignature } from "../types";
+import type { Rule, RulesSweep, SavedSignature } from "../types";
 import { statusText } from "./FolderPane";
 import { imageSenders } from "./HtmlBody";
 
@@ -643,8 +643,25 @@ function Rules() {
   const [rules, setRules] = useState<Rule[]>([]);
   const [editing, setEditing] = useState<Rule | null>(null);
   const [error, setError] = useState("");
+  const [sweeping, setSweeping] = useState(false);
+  const [swept, setSwept] = useState<RulesSweep | null>(null);
   const reload = () => backend.listRules().then(setRules);
   useEffect(() => void reload(), []);
+
+  /** Rules see new mail as it arrives; this runs them over what is already in the inbox. */
+  async function runOverExisting() {
+    setSweeping(true);
+    setSwept(null);
+    try {
+      setSwept(await backend.applyRulesNow(null));
+      setError("");
+      await useStore.getState().refresh();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setSweeping(false);
+    }
+  }
 
   async function save() {
     if (!editing) return;
@@ -669,6 +686,20 @@ function Rules() {
   return (
     <>
       <p className="mb-3 text-[13px] text-ink2">{tr("rules.intro")}</p>
+      <div className="mb-3 rounded-[10px] border border-edge px-3 py-2.5">
+        <div className="text-[13px]">{tr("rules.runTitle")}</div>
+        <p className="mt-0.5 text-xs text-ink3">{tr("rules.runNote")}</p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Button className="h-8" onClick={() => void runOverExisting()} disabled={sweeping || rules.length === 0}>
+            {sweeping ? tr("rules.running") : tr("rules.runNow")}
+          </Button>
+          {swept && (
+            <span className="text-xs text-ink2" role="status">
+              {swept.checked === 0 ? tr("rules.ranNothing") : swept.matched === 0 ? tr("rules.ranNoMatch", { checked: swept.checked }) : tr("rules.ranMatched", { checked: swept.checked, matched: swept.matched })}
+            </span>
+          )}
+        </div>
+      </div>
       {rules.map((r) => (
         <div key={r.id} className="mb-2 flex items-center gap-3 rounded-[10px] border border-edge px-3 py-2">
           <input type="checkbox" aria-label={tr("rules.enable", { name: r.name })} checked={r.enabled} onChange={(e) => void backend.saveRule({ ...r, enabled: e.target.checked }).then(reload)} />

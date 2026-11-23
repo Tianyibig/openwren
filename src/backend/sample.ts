@@ -504,6 +504,10 @@ export const sampleBackend: Backend = {
   deleteRule: async (id) => {
     rules = rules.filter((r) => r.id !== id);
   },
+  applyRulesNow: async () => {
+    // The browser preview has no engine behind it: say nothing was looked at.
+    return { checked: 0, matched: 0 };
+  },
 
   getSetting: async (key) => settings.get(key) ?? null,
   setSetting: async (key, value) => {

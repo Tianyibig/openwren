@@ -72,6 +72,38 @@ pub fn apply(db: &Db, rules: &[Rule], account_id: i64, message_id: i64, header: 
     Ok(())
 }
 
+/// What a run over the mail already stored did.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Sweep {
+    /// How many messages in an inbox were looked at.
+    pub checked: u32,
+    /// How many of them a rule matched (and so acted on).
+    pub matched: u32,
+}
+
+/// Run the rules over the mail already in an inbox. New mail gets them as it arrives; this
+/// is for what was there before a rule was written. Repeating it is harmless: a moved
+/// message has left the inbox, and the other actions set what is already set.
+pub fn sweep(db: &Db, account_id: Option<i64>, now: i64) -> Result<Sweep> {
+    let rules = db::list_rules(&db::lock(db))?;
+    let mut out = Sweep { checked: 0, matched: 0 };
+    if rules.is_empty() {
+        return Ok(out);
+    }
+    // Read the list before the loop, not in its head: a lock taken in the head of a `for`
+    // lives until the loop ends, and `apply` needs the same lock — the two would deadlock.
+    let rows = db::inbox_headers(&db::lock(db), account_id)?;
+    for (message_id, account, header) in rows {
+        out.checked += 1;
+        if rules.iter().any(|r| r.matches(&header)) {
+            apply(db, &rules, account, message_id, &header, now)?;
+            out.matched += 1;
+        }
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -543,6 +543,17 @@ export const MESSAGES: Record<string, { en: string; zh: string }> = {
   "onboard.preview.subject1": { en: "Event announcement content", zh: "活动通知内容" },
   "onboard.preview.subject2": { en: "Weekly digest", zh: "每周摘要" },
 
+  "rules.runTitle": { en: "Run them over the mail already here", zh: "对已有邮件运行一次" },
+  "rules.runNote": {
+    en: "New mail is filed as it arrives. This runs the rules over what is already in your inbox, and can be run again safely.",
+    zh: "新邮件会在到达时自动处理。这里可以对收件箱里已有的邮件运行一次规则，重复运行也不会出问题。",
+  },
+  "rules.runNow": { en: "Run the rules now", zh: "立即运行规则" },
+  "rules.running": { en: "Running…", zh: "正在运行…" },
+  "rules.ranNothing": { en: "The inboxes are empty, so there was nothing to look at.", zh: "收件箱是空的，没有可处理的邮件。" },
+  "rules.ranNoMatch": { en: "{checked} messages looked at; none matched.", zh: "查看了 {checked} 封邮件，没有匹配的。" },
+  "rules.ranMatched": { en: "{checked} messages looked at; {matched} matched.", zh: "查看了 {checked} 封邮件，其中 {matched} 封匹配。" },
+
   "error.auth": { en: "The mail server did not accept the password or authorisation code.", zh: "邮件服务器没有接受密码或授权码。" },
   "error.tls": { en: "The connection could not be encrypted the way this server expects. Check the port and the encryption choice.", zh: "无法按这台服务器要求的方式加密连接。请检查端口和加密方式。" },
   "error.network": { en: "The mail server did not answer. Check the connection and try again.", zh: "邮件服务器没有响应。请检查网络后重试。" },
