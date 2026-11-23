@@ -71,7 +71,8 @@ interface State {
   /** Messages ticked for a bulk action (always includes messageId when set by a click). */
   selected: number[];
   detail: MessageDetail | null;
-  detailError: string | null;
+  /** Why the open message could not be loaded, as the engine sent it. */
+  detailError: unknown;
   /** Other messages in the open message's conversation, oldest first. */
   thread: MessageSummary[];
   query: string;
@@ -488,7 +489,7 @@ export const useStore = create<State>((set, get) => {
         prefetch([...thread.map((t) => t.id).filter((other) => other !== id), ...neighbours]);
         if (detail.unread) await get().setFlags(id, { unread: false });
       } catch (e) {
-        if (request === detailRequest) set({ detailError: errorText(e) });
+        if (request === detailRequest) set({ detailError: e });
       }
     },
 

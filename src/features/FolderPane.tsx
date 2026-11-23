@@ -222,6 +222,8 @@ function SyncStatus() {
                   <div className="min-w-0 flex-1">
                     <div className="selectable truncate text-[13px] text-ink">{a.address}</div>
                     <div className={`selectable text-xs break-words ${bad ? "text-danger" : "text-ink2"}`}>{statusText(p, tr) || tr("sync.waiting")}</div>
+                    {/* What the failure means, above the engine's own words. */}
+                    {p?.phase === "error" && p.kind && <div className="mt-0.5 text-xs text-danger">{tr(`error.${p.kind}`)}</div>}
                   </div>
                 </div>
               );

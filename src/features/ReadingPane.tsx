@@ -25,7 +25,7 @@ import {
 } from "@tabler/icons-react";
 import { useMemo, useRef, useState } from "react";
 import { backend, errorText } from "../backend";
-import { Avatar, Button, CategoryDot, IconButton, Marked, Menu, categories } from "../components/ui";
+import { Avatar, Button, CategoryDot, ErrorNote, IconButton, Marked, Menu, categories } from "../components/ui";
 import type { MenuItem } from "../components/ui";
 import { longTime, shortTime } from "../lib/dates";
 import { currentLanguage } from "../lib/currentLanguage";
@@ -329,7 +329,7 @@ export function ReadingPane() {
       <Centered>
         <IconAlertCircle size={36} stroke={1.25} className="text-danger" />
         <p className="text-ink">{tr("reader.couldNotLoad")}</p>
-        <p className="selectable max-w-md">{error}</p>
+        <ErrorNote error={error} className="max-w-md text-left" />
         <Button onClick={() => void selectMessage(messageId)}>{tr("reader.tryAgain")}</Button>
       </Centered>
     );

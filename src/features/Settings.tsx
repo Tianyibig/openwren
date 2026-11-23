@@ -4,7 +4,7 @@ import logo from "../../src-tauri/icons/128x128.png";
 import { backend, errorText } from "../backend";
 import type { AppInfo, StorageInfo } from "../backend";
 import { RichText } from "../components/RichText";
-import { Button, Chip, IconButton, categories, fieldBox, fieldCaption } from "../components/ui";
+import { Button, Chip, ErrorNote, IconButton, categories, fieldBox, fieldCaption } from "../components/ui";
 import { TEXT_SIZES, fontChoice } from "../lib/font";
 import { LANGUAGES, language } from "../lib/i18n";
 import { useT } from "../lib/useTranslate";
@@ -59,20 +59,20 @@ function Accounts() {
   const tr = useT();
   const { setSetting, setDialog, refresh } = useStore.getState();
   const [confirm, setConfirm] = useState<number | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>(null);
 
   // A large mailbox takes a while to delete: say so instead of looking stuck.
   const [removing, setRemoving] = useState<number | null>(null);
 
   async function remove(id: number) {
-    setError("");
+    setError(null);
     setRemoving(id);
     try {
       await backend.removeAccount(id);
       setConfirm(null);
       await refresh();
     } catch (e) {
-      setError(errorText(e));
+      setError(e);
     } finally {
       setRemoving(null);
     }
@@ -88,11 +88,11 @@ function Accounts() {
     const next = [...accounts];
     next.splice(to, 0, ...next.splice(from, 1));
     useStore.setState({ accounts: next }); // show it at once; the engine follows
-    setError("");
+    setError(null);
     try {
       await backend.reorderAccounts(next.map((a) => a.id));
     } catch (e) {
-      setError(errorText(e));
+      setError(e);
     }
     await refresh();
   }
@@ -185,7 +185,7 @@ function Accounts() {
         {accounts.length > 1 && `${tr("accounts.orderNote")} `}
         {tr("accounts.removeNote")}
       </p>
-      <Problem text={error} />
+      <ErrorNote error={error} className="mt-2" />
 
       <h3 className="mt-6 mb-1 font-semibold">{tr("accounts.googleTitle")}</h3>
       <p className="mb-2 text-[13px] text-ink2">{tr("accounts.googleNote")}</p>

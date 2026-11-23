@@ -205,6 +205,8 @@ export interface Progress {
   done: number;
   total: number;
   message: string;
+  /** What kind of failure, when `phase` is "error". */
+  kind?: "auth" | "tls" | "network" | "notFound" | "quota" | "server" | "other";
 }
 
 export interface Flags {

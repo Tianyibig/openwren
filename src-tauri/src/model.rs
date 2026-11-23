@@ -264,6 +264,9 @@ pub struct Progress {
     pub done: u32,
     pub total: u32,
     pub message: String,
+    /// What kind of failure this is, when `phase` is "error".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<crate::error::Kind>,
 }
 
 /// How an account proves who it is: a password, or a Google OAuth access token.
