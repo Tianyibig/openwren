@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { highlight } from "../lib/search";
 import { brandFor, isLight } from "../lib/brands";
+import { errorKind, errorText } from "../lib/errors";
 import { senderConfirmed } from "../lib/privacy";
+import { useT } from "../lib/useTranslate";
 import { useStore } from "../store";
 
 type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "default" | "primary" | "ghost" };
@@ -241,4 +243,21 @@ export function CategoryDot({ name }: { name: string }) {
 }
 
 export const fieldBox = "h-9 w-full rounded-[10px] border border-edge bg-card px-2.5 outline-none focus:border-line placeholder:text-ink3";
+
+/**
+ * A failure, in the reader's language, with the engine's own words underneath.
+ * The engine sends a category with every failure, so the sentence above does not have to
+ * be the engine's: it says what the category means and leaves the detail as detail.
+ */
+export function ErrorNote({ error, className = "" }: { error: unknown; className?: string }) {
+  const tr = useT();
+  const kind = errorKind(error);
+  const detail = errorText(error);
+  return (
+    <div className={`selectable rounded-[10px] bg-canvas px-3 py-2 text-[13px] text-danger ${className}`} role="alert">
+      <div>{tr(`error.${kind ?? "other"}`)}</div>
+      {detail && detail !== tr(`error.${kind ?? "other"}`) && <div className="mt-1 text-xs text-ink3">{detail}</div>}
+    </div>
+  );
+}
 export const fieldCaption = "mb-1 block text-xs text-ink2";
