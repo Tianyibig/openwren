@@ -629,15 +629,16 @@ function Privacy() {
 }
 
 const blank: Rule = { id: 0, name: "", enabled: true, fromContains: "", subjectContains: "", action: "move", target: "Archive" };
-const actionNames: [Rule["action"], string][] = [
-  ["move", "Move to folder"],
-  ["category", "Set category"],
-  ["flag", "Flag"],
-  ["read", "Mark as read"],
-  ["delete", "Delete"],
+const actionKeys: [Rule["action"], string][] = [
+  ["move", "rules.move"],
+  ["category", "rules.setCategory"],
+  ["flag", "reader.flag"],
+  ["read", "reader.markRead"],
+  ["delete", "reader.delete"],
 ];
 
 function Rules() {
+  const tr = useT();
   const [rules, setRules] = useState<Rule[]>([]);
   const [editing, setEditing] = useState<Rule | null>(null);
   const [error, setError] = useState("");
@@ -656,54 +657,56 @@ function Rules() {
     }
   }
 
-  const describe = (r: Rule) =>
-    [r.fromContains && `from "${r.fromContains}"`, r.subjectContains && `subject "${r.subjectContains}"`].filter(Boolean).join(" and ") +
-    " → " +
-    (actionNames.find((a) => a[0] === r.action)?.[1] ?? r.action) +
-    (r.action === "move" || r.action === "category" ? `: ${r.target}` : "");
+  const describe = (r: Rule) => {
+    const from = r.fromContains && tr("rules.from", { value: r.fromContains });
+    const subject = r.subjectContains && tr("rules.subject", { value: r.subjectContains });
+    const condition = from && subject ? tr("rules.both", { first: from, second: subject }) : (from || subject || "");
+    const action = actionKeys.find((a) => a[0] === r.action);
+    return condition + " → " + (action ? tr(action[1]) : r.action) + (r.action === "move" || r.action === "category" ? tr("rules.target", { value: r.target }) : "");
+  };
 
   return (
     <>
-      <p className="mb-3 text-[13px] text-ink2">Rules run on new mail arriving in the inbox while OpenWren is open. The first rule that matches is applied.</p>
+      <p className="mb-3 text-[13px] text-ink2">{tr("rules.intro")}</p>
       {rules.map((r) => (
         <div key={r.id} className="mb-2 flex items-center gap-3 rounded-[10px] border border-edge px-3 py-2">
-          <input type="checkbox" aria-label={`Enable ${r.name}`} checked={r.enabled} onChange={(e) => void backend.saveRule({ ...r, enabled: e.target.checked }).then(reload)} />
+          <input type="checkbox" aria-label={tr("rules.enable", { name: r.name })} checked={r.enabled} onChange={(e) => void backend.saveRule({ ...r, enabled: e.target.checked }).then(reload)} />
           <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setEditing(r)}>
             <div className="truncate">{r.name}</div>
             <div className="truncate text-xs text-ink2">{describe(r)}</div>
           </button>
-          <IconButton label={`Delete ${r.name}`} onClick={() => void backend.deleteRule(r.id).then(reload)}>
+          <IconButton label={tr("rules.delete", { name: r.name })} onClick={() => void backend.deleteRule(r.id).then(reload)}>
             <IconTrash size={18} />
           </IconButton>
         </div>
       ))}
       {!editing && (
         <Button variant="primary" onClick={() => setEditing(blank)}>
-          New rule
+          {tr("rules.new")}
         </Button>
       )}
       {editing && (
         <div className="mt-3 rounded-[10px] border border-edge p-3">
           <label className={fieldCaption} htmlFor="rule-name">
-            Name
+            {tr("rules.name")}
           </label>
-          <input id="rule-name" className={fieldBox} value={editing.name} placeholder="Newsletters to Archive" onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
+          <input id="rule-name" className={fieldBox} value={editing.name} placeholder={tr("rules.namePlaceholder")} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
           <div className="mt-3 grid grid-cols-2 gap-3">
             <div>
               <label className={fieldCaption} htmlFor="rule-from">
-                Sender contains
+                {tr("rules.senderContains")}
               </label>
-              <input id="rule-from" className={fieldBox} value={editing.fromContains} placeholder="newsletter@" onChange={(e) => setEditing({ ...editing, fromContains: e.target.value })} />
+              <input id="rule-from" className={fieldBox} value={editing.fromContains} placeholder={tr("rules.senderPlaceholder")} onChange={(e) => setEditing({ ...editing, fromContains: e.target.value })} />
             </div>
             <div>
               <label className={fieldCaption} htmlFor="rule-subject">
-                Subject contains
+                {tr("rules.subjectContains")}
               </label>
               <input id="rule-subject" className={fieldBox} value={editing.subjectContains} onChange={(e) => setEditing({ ...editing, subjectContains: e.target.value })} />
             </div>
             <div>
               <label className={fieldCaption} htmlFor="rule-action">
-                Then
+                {tr("rules.then")}
               </label>
               <select
                 id="rule-action"
@@ -714,9 +717,9 @@ function Rules() {
                   setEditing({ ...editing, action, target: action === "category" ? "Blue" : action === "move" ? "Archive" : "" });
                 }}
               >
-                {actionNames.map(([v, text]) => (
+                {actionKeys.map(([v, key]) => (
                   <option key={v} value={v}>
-                    {text}
+                    {tr(key)}
                   </option>
                 ))}
               </select>
@@ -724,7 +727,7 @@ function Rules() {
             {editing.action === "move" && (
               <div>
                 <label className={fieldCaption} htmlFor="rule-target">
-                  Folder name
+                  {tr("rules.folderName")}
                 </label>
                 <input id="rule-target" className={fieldBox} value={editing.target} onChange={(e) => setEditing({ ...editing, target: e.target.value })} />
               </div>
@@ -732,7 +735,7 @@ function Rules() {
             {editing.action === "category" && (
               <div>
                 <label className={fieldCaption} htmlFor="rule-category">
-                  Category
+                  {tr("rules.category")}
                 </label>
                 <select id="rule-category" className={fieldBox} value={editing.target} onChange={(e) => setEditing({ ...editing, target: e.target.value })}>
                   {Object.keys(categories).map((c) => (
@@ -744,9 +747,9 @@ function Rules() {
           </div>
           <div className="mt-3 flex gap-2">
             <Button variant="primary" onClick={() => void save()}>
-              Save rule
+              {tr("rules.save")}
             </Button>
-            <Button onClick={() => (setEditing(null), setError(""))}>Cancel</Button>
+            <Button onClick={() => (setEditing(null), setError(""))}>{tr("rules.cancel")}</Button>
           </div>
           <Problem text={error} />
         </div>
@@ -758,36 +761,37 @@ function Rules() {
 function Notifications() {
   const settings = useStore((s) => s.settings);
   const setSetting = useStore((s) => s.setSetting);
+  const tr = useT();
   return (
     <>
       <Options
-        label="Desktop notification when new mail arrives in Focused"
+        label={tr("notify.focused")}
         value={settings.notifications ?? "on"}
         onChange={(v) => void setSetting("notifications", v)}
         options={[
-          ["on", "On"],
-          ["off", "Off"],
+          ["on", tr("privacyPage.on")],
+          ["off", tr("privacyPage.off")],
         ]}
       />
       <Options
-        label="When the window is closed"
+        label={tr("notify.closeToTray")}
         value={settings.close_to_tray === "off" ? "off" : "on"}
         onChange={(v) => void setSetting("close_to_tray", v)}
         options={[
-          ["on", "Keep running in the tray"],
-          ["off", "Quit OpenWren"],
+          ["on", tr("notify.keepInTray")],
+          ["off", tr("notify.quit")],
         ]}
       />
       <Options
-        label="When you log in to this computer"
+        label={tr("notify.atLogin")}
         value={settings.start_at_login === "off" ? "off" : "on"}
         onChange={(v) => void setSetting("start_at_login", v)}
         options={[
-          ["on", "Start OpenWren in the tray"],
-          ["off", "Do not start OpenWren"],
+          ["on", tr("notify.startInTray")],
+          ["off", tr("notify.doNotStart")],
         ]}
       />
-      <p className="text-[13px] text-ink2">Notifications appear only while OpenWren is running. In the tray it keeps checking for mail; use the tray icon to open it again or to quit.</p>
+      <p className="text-[13px] text-ink2">{tr("notify.note")}</p>
     </>
   );
 }
@@ -811,6 +815,7 @@ const SYSTEM_UPDATE: Record<string, string> = {
 /** Whether a newer version exists, and the way to get it for this kind of installation. */
 function Updates({ version }: { version: string }) {
   const update = useStore((s) => s.update);
+  const tr = useT();
   const [state, setState] = useState<"idle" | "checking" | "current" | "installing">("idle");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
@@ -841,9 +846,9 @@ function Updates({ version }: { version: string }) {
   if (!update) {
     return (
       <div className="mt-4 flex flex-wrap items-center gap-3 rounded-[10px] border border-edge px-3 py-2.5">
-        <span className="text-ink2">{state === "current" ? `Version ${version} is the newest.` : state === "checking" ? "Checking…" : "OpenWren looks for a new version a few times a day."}</span>
+        <span className="text-ink2">{state === "current" ? tr("updates.newest", { version }) : state === "checking" ? tr("updates.checking") : tr("updates.watchNote")}</span>
         <Button className="ml-auto h-7" onClick={() => void check()}>
-          Check now
+          {tr("updates.checkNow")}
         </Button>
         <Problem text={error} />
       </div>
@@ -852,19 +857,19 @@ function Updates({ version }: { version: string }) {
   const command = SYSTEM_UPDATE[update.package];
   return (
     <div className="mt-4 rounded-[10px] border border-brand/40 bg-brand/5 px-3 py-2.5" role="status">
-      <div className="font-semibold">Version {update.version} is available</div>
+      <div className="font-semibold">{tr("updates.available", { version: update.version })}</div>
       {update.notes && <p className="mt-0.5 text-[13px] text-ink2">{update.notes}</p>}
       {update.how === "install" && (
         <div className="mt-2 flex items-center gap-3">
           <Button variant="primary" onClick={() => void install()}>
-            {state === "installing" ? "Installing…" : "Install and restart"}
+            {state === "installing" ? tr("updates.installing") : tr("updates.installRestart")}
           </Button>
-          <span className="text-[13px] text-ink2">The update is checked against OpenWren's signing key before it is installed.</span>
+          <span className="text-[13px] text-ink2">{tr("updates.signed")}</span>
         </div>
       )}
       {update.how === "system" && command && (
         <>
-          <p className="mt-1 text-[13px] text-ink2">Your system installs it with its normal updates, or right now with:</p>
+          <p className="mt-1 text-[13px] text-ink2">{tr("updates.systemInstalls")}</p>
           <div className="mt-1.5 flex items-center gap-2">
             <code className="selectable min-w-0 flex-1 overflow-x-auto rounded-md bg-canvas px-2 py-1.5 font-mono text-xs whitespace-nowrap">{command}</code>
             <Button
@@ -874,21 +879,21 @@ function Updates({ version }: { version: string }) {
                 setTimeout(() => setCopied(false), 1500);
               }}
             >
-              {copied ? "Copied" : "Copy"}
+              {copied ? tr("updates.copied") : tr("updates.copy")}
             </Button>
           </div>
-          <p className="mt-1.5 text-xs text-ink3">Then quit OpenWren from the tray and start it again.</p>
+          <p className="mt-1.5 text-xs text-ink3">{tr("updates.quitAndStart")}</p>
         </>
       )}
       {(update.how === "download" || (update.how === "system" && !command)) && (
         <Button className="mt-2" onClick={() => void backend.openLink(`${WEBSITE}/download/`)}>
-          Open the download page
+          {tr("updates.downloadPage")}
         </Button>
       )}
       <Problem text={error} />
       {error && update.how === "install" && (
         <Button className="mt-2" onClick={() => void backend.openLink(`${WEBSITE}/download/`)}>
-          Open the download page
+          {tr("updates.downloadPage")}
         </Button>
       )}
     </div>
@@ -897,6 +902,7 @@ function Updates({ version }: { version: string }) {
 
 function About() {
   const [info, setInfo] = useState<AppInfo | null>(null);
+  const tr = useT();
   useEffect(() => {
     backend
       .appInfo()
@@ -911,43 +917,43 @@ function About() {
         <img src={logo} alt="" className="size-16" />
         <div>
           <div className="text-lg font-semibold">OpenWren</div>
-          <div className="text-ink2">{info ? `Version ${info.version}` : "Browser preview on sample mail"}</div>
+          <div className="text-ink2">{info ? tr("about.version", { version: info.version }) : tr("about.preview")}</div>
         </div>
       </div>
-      <p className="mt-4">An open-source mail client. Your mail is kept on this computer, encrypted, and in sync with your mail server.</p>
+      <p className="mt-4">{tr("about.intro")}</p>
       <Updates version={info?.version ?? ""} />
       <div className="mt-4 text-[13px]">
         <div className={row}>
-          <span className={name}>Licence</span>
+          <span className={name}>{tr("about.licence")}</span>
           <span>
-            Apache License, version 2.0. OpenWren is free and open source: you may use, study, share and change it. It comes with no warranty.{" "}
+            {tr("about.licenceText")}{" "}
             <button type="button" className="text-brand underline" onClick={() => void backend.openLink("https://www.apache.org/licenses/LICENSE-2.0")}>
-              Read the licence
+              {tr("about.readLicence")}
             </button>
             {" · "}
             <button type="button" className="text-brand underline" onClick={() => void backend.openLink(REPOSITORY)}>
-              View the code
+              {tr("about.viewCode")}
             </button>
           </span>
         </div>
         {info && (
           <>
             <div className={row}>
-              <span className={name}>Mail database</span>
+              <span className={name}>{tr("about.database")}</span>
               <span className="selectable break-all">{info.dataDir}/openwren.db</span>
             </div>
             <div className={row}>
-              <span className={name}>Encryption</span>
-              <span>{info.cipher ? `Encrypted with SQLCipher ${info.cipher.split(" ")[0]}. The key is in your system's password store.` : "Not encrypted"}</span>
+              <span className={name}>{tr("about.encryption")}</span>
+              <span>{info.cipher ? tr("about.encryptedWith", { version: info.cipher.split(" ")[0] }) : tr("about.notEncrypted")}</span>
             </div>
             <div className={row}>
-              <span className={name}>Database version</span>
+              <span className={name}>{tr("about.dbVersion")}</span>
               <span>{info.schemaVersion}</span>
             </div>
           </>
         )}
         <div className={row}>
-          <span className={name}>Built with</span>
+          <span className={name}>{tr("about.builtWith")}</span>
           <span>
             {builtWith.map(([label, url], i) => (
               <span key={label}>
@@ -961,7 +967,7 @@ function About() {
         </div>
       </div>
       <Button className="mt-4" onClick={() => useStore.getState().setWelcome(true)}>
-        Show the welcome screens again
+        {tr("about.showWelcome")}
       </Button>
     </>
   );
@@ -969,25 +975,24 @@ function About() {
 
 /** Why the project asks for sponsors, and the way to become one. */
 function Sponsor() {
+  const tr = useT();
   return (
     <div className="flex items-start gap-3.5">
       <div className="flex size-10 flex-none items-center justify-center rounded-full bg-danger/10 text-danger">
         <IconHeart size={20} />
       </div>
       <div className="min-w-0">
-        <div className="font-semibold">OpenWren is free. Sponsors keep it that way.</div>
-        <p className="mt-1 text-[13px] text-ink2">
-          No ads and no data to sell. If OpenWren is your daily mail app, a few dollars a month pays for the time to fix bugs, answer security reports and keep up with mail providers, and for signed installers on Windows and macOS.
-        </p>
+        <div className="font-semibold">{tr("sponsor.title")}</div>
+        <p className="mt-1 text-[13px] text-ink2">{tr("sponsor.note")}</p>
         <Button className="mt-3" onClick={() => void backend.openLink(SPONSOR_PAGE)}>
-          <IconHeart size={16} className="text-danger" /> Sponsor on GitHub
+          <IconHeart size={16} className="text-danger" /> {tr("sponsor.button")}
         </Button>
         <p className="mt-4 text-[13px] text-ink2">
-          Not able to sponsor? A star on{" "}
+          {tr("sponsor.starBefore")}
           <button type="button" className="text-brand underline" onClick={() => void backend.openLink(REPOSITORY)}>
             GitHub
-          </button>{" "}
-          helps others find OpenWren, and costs nothing.
+          </button>
+          {tr("sponsor.starAfter")}
         </p>
       </div>
     </div>
