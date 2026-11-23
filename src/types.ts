@@ -209,6 +209,14 @@ export interface Progress {
   kind?: "auth" | "tls" | "network" | "notFound" | "quota" | "server" | "other";
 }
 
+/** What running the rules over the mailbox already there did. */
+export interface RulesSweep {
+  /** How many messages in an inbox were looked at. */
+  checked: number;
+  /** How many of them a rule matched, and so acted on. */
+  matched: number;
+}
+
 export interface Flags {
   unread?: boolean;
   flagged?: boolean;

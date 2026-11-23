@@ -13,6 +13,7 @@ import type {
   Outgoing,
   Progress,
   Rule,
+  RulesSweep,
   SavedSignature,
   SearchFilters,
   SendFailed,
@@ -138,6 +139,8 @@ export interface Backend {
   listRules(): Promise<Rule[]>;
   saveRule(rule: Rule): Promise<number>;
   deleteRule(id: number): Promise<void>;
+  /** Run the rules over the mail already in the inboxes; null = every account. */
+  applyRulesNow(accountId: number | null): Promise<RulesSweep>;
 
   /** The newer version found by the last check, if any. */
   updateStatus(): Promise<UpdateAvailable | null>;
@@ -229,6 +232,7 @@ const tauriBackend: Backend = {
   listRules: () => invoke("list_rules"),
   saveRule: (rule) => invoke("save_rule", { rule }),
   deleteRule: (id) => invoke("delete_rule", { id }),
+  applyRulesNow: (accountId) => invoke("apply_rules_now", { accountId }),
 
   updateStatus: () => invoke("update_status"),
   checkUpdate: () => invoke("check_update"),

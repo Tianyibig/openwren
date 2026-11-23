@@ -1246,6 +1246,12 @@ fn delete_rule(state: State<'_, AppState>, id: i64) -> Result<()> {
     db::delete_rule(&db::lock(&state.db), id)
 }
 
+/// Run the rules over the mail already in the inboxes. Rules otherwise only see new mail.
+#[tauri::command]
+fn apply_rules_now(state: State<'_, AppState>, account_id: Option<i64>) -> Result<rules::Sweep> {
+    rules::sweep(&state.db, account_id, now())
+}
+
 /// Delete every message from the same sender in the same folder. Returns undo ids.
 #[tauri::command]
 fn sweep(app: AppHandle, state: State<'_, AppState>, id: i64) -> Result<Vec<i64>> {
@@ -1784,6 +1790,7 @@ pub fn run() {
             list_rules,
             save_rule,
             delete_rule,
+            apply_rules_now,
             sweep,
             set_sender_focus,
             save_attachment,

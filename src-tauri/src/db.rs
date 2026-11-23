@@ -1003,6 +1003,21 @@ pub fn list_rules(conn: &Connection) -> Result<Vec<crate::rules::Rule>> {
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
+/// The mail the rules can still act on: everything sitting in an inbox, newest first, with
+/// the fields a rule looks at. `account_id` narrows it to one account.
+pub fn inbox_headers(conn: &Connection, account_id: Option<i64>) -> Result<Vec<(i64, i64, Header)>> {
+    let mut stmt = conn.prepare(
+        "SELECT m.id, m.account_id, m.subject, coalesce(m.from_name, ''), coalesce(m.from_address, '')
+           FROM messages m JOIN message_folders mf ON mf.message_id = m.id JOIN folders f ON f.id = mf.folder_id
+          WHERE f.role = 'inbox' AND (?1 IS NULL OR m.account_id = ?1)
+          ORDER BY m.date DESC",
+    )?;
+    let rows = stmt.query_map([account_id], |r| {
+        Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, Header { subject: r.get(2)?, from_name: r.get(3)?, from_address: r.get(4)?, ..Header::default() }))
+    })?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
 pub fn save_rule(conn: &Connection, rule: &crate::rules::Rule) -> Result<i64> {
     let conditions = serde_json::json!({ "from": rule.from_contains, "subject": rule.subject_contains }).to_string();
     let actions = serde_json::json!({ "action": rule.action, "target": rule.target }).to_string();
