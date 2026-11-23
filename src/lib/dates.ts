@@ -1,4 +1,4 @@
-import type { Lang } from "./i18n";
+import { currentLanguage } from "./currentLanguage";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -9,14 +9,7 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS_ZH = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
 const WEEKDAYS_ZH = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 
-let lang: Lang = "en";
-
-/** The language dates are written in. Set from the interface language. */
-export function useDateLanguage(next: Lang) {
-  lang = next;
-}
-
-const chinese = () => lang === "zh";
+const chinese = () => currentLanguage() === "zh";
 
 /** "14 Sep 2025", or "2025年9月14日" */
 function dayMonthYear(d: Date): string {
