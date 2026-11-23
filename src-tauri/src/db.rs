@@ -1,20 +1,50 @@
 //! All SQL lives here. Functions take a plain connection and never block on the network.
 
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use rusqlite::{params, Connection, OptionalExtension, Row};
 
 use crate::cjk;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::model::*;
 use crate::parse::{Body, Header};
 
-/// The one database connection. Lock it briefly; never hold it across an `.await`.
+/// The connection everything is written through, and the one every query used to share
+/// with it. Held briefly; never held across an `.await`.
 pub type Db = Arc<Mutex<Connection>>;
 
 pub fn lock(db: &Db) -> MutexGuard<'_, Connection> {
     db.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// Connections that only read, so a list or a search does not wait behind the transaction
+/// a sync is writing with. The database is in WAL mode, where readers see the last
+/// committed state while the writer carries on.
+pub struct Readers {
+    connections: Vec<Mutex<Connection>>,
+    next: AtomicUsize,
+}
+
+impl Readers {
+    pub fn new(connections: Vec<Connection>) -> Self {
+        Self { connections: connections.into_iter().map(Mutex::new).collect(), next: AtomicUsize::new(0) }
+    }
+
+    pub fn count(&self) -> usize {
+        self.connections.len()
+    }
+
+    /// One of the readers, taken in turn so two calls do not queue for the same one. Waits
+    /// only while every reader is busy with another query.
+    pub fn check_out(&self) -> Result<MutexGuard<'_, Connection>> {
+        let Some(_) = self.connections.first() else {
+            return Err(Error("The database has no reader connections.".into()));
+        };
+        let index = self.next.fetch_add(1, Ordering::Relaxed) % self.connections.len();
+        Ok(self.connections[index].lock().unwrap_or_else(|poisoned| poisoned.into_inner()))
+    }
 }
 
 // ---------- accounts ----------
@@ -1017,6 +1047,47 @@ mod tests {
         for _ in 0..count {
             conn.execute("INSERT INTO messages (account_id, date, auth) VALUES (?1, 0, ?2)", params![account, format!("id={server};dmarc=pass")]).unwrap();
         }
+    }
+
+    /// A file database, because in-memory connections each have a database of their own.
+    fn temporary_database(name: &str) -> (std::path::PathBuf, String) {
+        let path = std::env::temp_dir().join(format!("openwren-{name}-{}.db", std::process::id()));
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+        }
+        (path, "0".repeat(64))
+    }
+
+    #[test]
+    fn readers_are_taken_in_turn_and_given_back() {
+        let (path, key) = temporary_database("readers");
+        let writer = crate::store::open(&path, &key).unwrap();
+        writer.execute("INSERT INTO settings (key, value) VALUES ('probe', 'one')", []).unwrap();
+        let readers = Readers::new(vec![crate::store::open_reader(&path, &key).unwrap(), crate::store::open_reader(&path, &key).unwrap()]);
+        assert_eq!(readers.count(), 2);
+
+        // Each check-out gives a working connection, and it goes back when it is dropped.
+        for _ in 0..3 {
+            let reader = readers.check_out().unwrap();
+            let value: String = reader.query_row("SELECT value FROM settings WHERE key = 'probe'", [], |r| r.get(0)).unwrap();
+            assert_eq!(value, "one", "a reader sees what the writer committed");
+        }
+        // Two at once, so one query does not queue behind another.
+        let first = readers.check_out().unwrap();
+        let second = readers.check_out().unwrap();
+        drop((first, second));
+
+        drop(writer);
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+        }
+    }
+
+    #[test]
+    fn no_readers_is_an_error_rather_than_a_wait() {
+        let readers = Readers::new(Vec::new());
+        assert_eq!(readers.count(), 0);
+        assert!(readers.check_out().is_err());
     }
 
     #[test]
