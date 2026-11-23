@@ -508,6 +508,8 @@ export const sampleBackend: Backend = {
     // The browser preview has no engine behind it: say nothing was looked at.
     return { checked: 0, matched: 0 };
   },
+  listOutbox: async () => [],
+  retrySend: async () => false,
 
   getSetting: async (key) => settings.get(key) ?? null,
   setSetting: async (key, value) => {

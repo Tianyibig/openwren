@@ -209,6 +209,19 @@ export interface Progress {
   kind?: "auth" | "tls" | "network" | "notFound" | "quota" | "server" | "other";
 }
 
+/** A message that is written but not on the server yet. */
+export interface OutboxItem {
+  id: number;
+  accountId: number;
+  to: string;
+  subject: string;
+  /** Unix seconds it will be tried at; in the past means "as soon as possible". */
+  sendAt: number;
+  /** How many attempts have failed so far. */
+  attempts: number;
+  lastError: string | null;
+}
+
 /** What running the rules over the mailbox already there did. */
 export interface RulesSweep {
   /** How many messages in an inbox were looked at. */
