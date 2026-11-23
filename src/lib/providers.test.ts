@@ -56,15 +56,36 @@ describe("the presets", () => {
         // A preset that suggested a plain connection would leak the password.
         expect(host.security).toBe("tls");
       }
-      expect(provider.setup.steps.length).toBeGreaterThan(0);
+      // The instructions exist in both languages, so switching language leaves no gap.
+      for (const language of ["en", "zh"] as const) {
+        expect(provider.setup[language].title.trim()).not.toBe("");
+        expect(provider.setup[language].steps.length).toBeGreaterThan(0);
+        for (const step of provider.setup[language].steps) expect(step.trim()).not.toBe("");
+      }
+      if (provider.link) {
+        expect(provider.link.url).toMatch(/^https:\/\//);
+        expect(provider.link.en.trim()).not.toBe("");
+        expect(provider.link.zh.trim()).not.toBe("");
+      }
     }
   });
 
   it("say plainly where the password comes from when it is a code", () => {
     const qq = providerById("qq");
     expect(qq?.code).toBe(true);
-    expect(qq?.setup.steps.join(" ")).toContain("授权码");
+    expect(qq?.setup.zh.steps.join(" ")).toContain("授权码");
+    expect(qq?.setup.en.steps.join(" ")).toContain("authorisation code");
     expect(providerById("exmail")?.code).toBeUndefined();
+  });
+
+  it("speak Chinese in their Chinese instructions, not English with a word swapped in", () => {
+    for (const provider of PROVIDERS) {
+      // A Chinese sentence that is mostly Latin letters is an English step left untranslated.
+      const chinese = provider.setup.zh.steps.join("") + provider.setup.zh.title;
+      const han = (chinese.match(/[\u4e00-\u9fff]/g) ?? []).length;
+      expect(han).toBeGreaterThan(10);
+      expect(provider.setup.zh.title).not.toBe(provider.setup.en.title);
+    }
   });
 
   it("are found by id, and unknown ids give nothing", () => {
