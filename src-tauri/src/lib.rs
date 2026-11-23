@@ -1,4 +1,5 @@
 pub mod actions;
+pub mod attachtext;
 pub mod autostart;
 pub mod blocked;
 pub mod cjk;

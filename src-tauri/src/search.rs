@@ -8,6 +8,9 @@ use crate::cjk;
 pub struct Parsed {
     /// FTS5 expression, or None when the query has only non-text filters.
     pub fts: Option<String>,
+    /// The free words alone, as an FTS5 expression: for a table with no columns to filter,
+    /// such as the attachment index. None when the query gave no free text.
+    pub text: Option<String>,
     /// Plain words and operator values, for searching on the server.
     pub words: Vec<String>,
     /// Single characters written without spaces, which are shorter than a pair in the
@@ -80,6 +83,7 @@ fn escape(value: &str) -> String {
 pub fn parse(input: &str) -> Parsed {
     let mut p = Parsed::default();
     let mut fts = Vec::new();
+    let mut free = Vec::new();
     for token in tokens(input) {
         let (key, value) = match token.split_once(':') {
             Some((k, v)) if !v.is_empty() => (k.to_ascii_lowercase(), v.to_string()),
@@ -116,7 +120,10 @@ pub fn parse(input: &str) -> Parsed {
             // Not an operator we know: search for the text as typed.
             _ => {
                 match term(&token) {
-                    Some(text) => fts.push(text),
+                    Some(text) => {
+                        free.push(text.clone());
+                        fts.push(text);
+                    }
                     // One character written without spaces: too short for the index.
                     None => p.scan.push(token.clone()),
                 }
@@ -128,6 +135,9 @@ pub fn parse(input: &str) -> Parsed {
     }
     if !fts.is_empty() {
         p.fts = Some(fts.join(" "));
+    }
+    if !free.is_empty() {
+        p.text = Some(free.join(" "));
     }
     p
 }
@@ -154,6 +164,19 @@ mod tests {
         let p = parse("invoice 2023");
         assert_eq!(p.fts.as_deref(), Some("\"invoice\"* \"2023\"*"));
         assert_eq!(p.words, ["invoice", "2023"]);
+        // The same words on their own, for a table that has only text to match.
+        assert_eq!(p.text.as_deref(), Some("\"invoice\"* \"2023\"*"));
+    }
+
+    #[test]
+    fn an_operator_value_is_not_free_text() {
+        // `sender:` names a column the attachment index does not have, so only the free
+        // words go to it.
+        let p = parse("from:Nordic subject:invoice");
+        assert_eq!(p.fts.as_deref(), Some("sender:\"Nordic\"* subject:\"invoice\"*"));
+        assert_eq!(p.text, None);
+        let mixed = parse("收据 from:财务");
+        assert_eq!(mixed.text.as_deref(), Some("\"收据\""));
     }
 
     #[test]

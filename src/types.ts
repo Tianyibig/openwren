@@ -48,6 +48,8 @@ export interface MessageSummary {
   auth: string | null;
   /** Which conversation the message belongs to, when it is known. */
   threadKey?: string | null;
+  /** A search found this message inside one of its attachments rather than in the mail. */
+  attachmentHit?: boolean;
 }
 
 export interface Attachment {
