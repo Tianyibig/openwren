@@ -188,6 +188,11 @@ export const MESSAGES: Record<string, { en: string; zh: string }> = {
   "reader.linkOne": { en: "tracking removed from 1 link", zh: "已去除 1 个链接上的追踪参数" },
   "reader.linkMany": { en: "tracking removed from {n} links", zh: "已去除 {n} 个链接上的追踪参数" },
 
+  "reader.verificationCode": { en: "Verification code", zh: "验证码" },
+  "reader.copyCode": { en: "Copy code", zh: "复制验证码" },
+  "reader.codeCopied": { en: "Copied", zh: "已复制" },
+  "reader.copyCodeFailed": { en: "Could not copy the code", zh: "无法复制验证码" },
+
   "reader.openingFile": { en: "Opening {name}…", zh: "正在打开 {name}…" },
   "reader.fileSaved": { en: "{name} saved", zh: "已保存 {name}" },
   "reader.openFile": { en: "Open {name}", zh: "打开 {name}" },

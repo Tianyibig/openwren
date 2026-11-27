@@ -190,6 +190,9 @@ If you ran `scripts/install-launcher.sh` from a source checkout, undo it with
 - **Gmail:** choose Google, then follow the three steps to create an app
   password in your Google account (it needs 2-step verification). Advanced:
   sign in with Google using your own OAuth client ID.
+- **iCloud, QQ, 163, 126, yeah.net, 139, Sina, Feishu, Lark and others:** pick
+  the provider or type the address; OpenWren fills the servers and shows how to
+  get an authorisation or app-specific password when one is required.
 - **Any other account:** enter your address and password; the server names are
   guessed from the address and can be corrected.
 

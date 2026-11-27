@@ -379,6 +379,7 @@ Last updated 12 November 2026. "Tested" means covered by automated tests against
 - **All inboxes:** one list of every account's inbox, at the top of Favorites.
 - **Favourites:** add or remove a folder with the star that appears on hover, or by right-click.
 - **Sync button** in the header, **tray icon** with Open, Sync now and Quit, and an **About** page in Settings.
+- **MailX absorption (partial):** IMAP ID announcement, Chinese folder role names, iCloud / Feishu / Lark presets, and a local verification-code copy bar. See [mailx-absorption.md](mailx-absorption.md).
 
 - **Tray:** closing the window keeps OpenWren running in the tray (can be turned off in Settings, Notifications). Starting it again shows the running window.
 - **Privacy:** tracking pixels and tracking link parameters are removed; warnings for failed sender checks (SPF, DKIM, DMARC), company names on foreign addresses and links that show one site but lead to another; unsubscribe from mailings (RFC 8058 one-click, mail or web page).

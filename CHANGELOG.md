@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- After signing in to IMAP, OpenWren announces itself with IMAP ID when the server supports it. NetEase (163 / 126 / yeah) and similar providers no longer block the client as “Unsafe Login” for lacking an identity.
+- Folder roles recognise common Chinese names (收件箱, 已发送, 垃圾邮件, …) when the server omits SPECIAL-USE marks.
+- Account presets for iCloud Mail (app-specific password, SMTP STARTTLS on 587), Feishu Mail and Lark Mail.
+- When a message contains a unique verification code, the reading pane offers a one-click copy. Detection stays on this computer.
+
 ## 0.1.12
 
 - A `mailto:` link in a message opens OpenWren's own composer, filled with the recipient, copy, subject and text only. It used to go to the system mail program with all its parameters, and some programs attach local files when a link asks them to.
