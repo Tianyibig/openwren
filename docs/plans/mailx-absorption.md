@@ -15,6 +15,7 @@ Encrypted SQLCipher database, phishing and tracker protections, unsubscribe, Foc
 | iCloud Mail preset | `imap.mail.me.com` + `smtp.mail.me.com:587` STARTTLS with app-specific password steps |
 | Feishu / Lark Mail presets | Organisation presets with dedicated-password guidance |
 | Verification-code shortcut | Local heuristic on subject + plain body; copy bar in the reading pane |
+| Forgotten-attachment reminder | Composer warns before send when the draft mentions an attachment but has none |
 
 ## Next waves (not in this change)
 

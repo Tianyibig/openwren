@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { backend, errorText } from "../backend";
 import { RichText } from "../components/RichText";
 import { Button, IconButton, Menu } from "../components/ui";
+import { composeKind, draftMentionsAttachment } from "../lib/attachmentMention";
 import { fileSize } from "../lib/search";
 import { signatureHtml } from "../lib/signature";
 import { useStore } from "../store";
@@ -110,6 +111,10 @@ export function Composer({ className }: { className: string }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [later, setLater] = useState("");
+  /** Shown when the draft mentions an attachment but none is attached yet. */
+  const [remindAttach, setRemindAttach] = useState(false);
+  /** Keep a scheduled send time while the attachment reminder is showing. */
+  const pendingSendAt = useRef<number | undefined>(undefined);
   const html = useRef(draft.html);
 
   // The account's default signature for this kind of message; the user can switch.
@@ -176,14 +181,23 @@ export function Composer({ className }: { className: string }) {
     await saving.current;
   }
 
-  async function submit(sendAt?: number) {
+  async function submit(sendAt?: number, skipAttachmentCheck = false) {
     if (busy) return;
     if (![to, cc, bcc].some((v) => v.trim())) return setError(tr("composer.noRecipient"));
     setError("");
+    const snap = snapshot();
+    const hasFiles = snap.attachments.length > 0 || (snap.forwarded?.items.length ?? 0) > 0;
+    if (!skipAttachmentCheck && !hasFiles && draftMentionsAttachment(snap, composeKind(snap))) {
+      pendingSendAt.current = sendAt;
+      setRemindAttach(true);
+      return;
+    }
+    setRemindAttach(false);
+    pendingSendAt.current = undefined;
     setBusy(true);
     try {
       await finish();
-      await send(snapshot(), signature, sendAt);
+      await send(snap, signature, sendAt);
     } catch (e) {
       done.current = false;
       setError(errorText(e));
@@ -200,8 +214,11 @@ export function Composer({ className }: { className: string }) {
   async function attach() {
     try {
       const picked = await backend.pickFiles();
-      setFiles((f) => [...f, ...picked.filter((p) => !f.includes(p))]);
-      touch();
+      if (picked.length) {
+        setFiles((f) => [...f, ...picked.filter((p) => !f.includes(p))]);
+        setRemindAttach(false);
+        touch();
+      }
     } catch (e) {
       setError(errorText(e));
     }
@@ -291,6 +308,17 @@ export function Composer({ className }: { className: string }) {
         <p className="selectable mt-2 rounded-[10px] bg-canvas px-3 py-2 text-[13px] text-danger" role="alert">
           {error}
         </p>
+      )}
+      {remindAttach && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-[10px] bg-canvas px-3 py-2 text-[13px] text-ink" role="alert">
+          <span>{tr("composer.attachmentMentioned")}</span>
+          <Button className="h-7" onClick={() => void attach()}>
+            <IconPaperclip size={16} /> {tr("composer.addAttachment")}
+          </Button>
+          <Button className="h-7" onClick={() => void submit(pendingSendAt.current, true)}>
+            {tr("composer.sendAnyway")}
+          </Button>
+        </div>
       )}
 
       <RichText
