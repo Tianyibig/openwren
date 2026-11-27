@@ -29,6 +29,7 @@ import { Avatar, Button, CategoryDot, ErrorNote, IconButton, Marked, Menu, categ
 import type { MenuItem } from "../components/ui";
 import { longTime, shortTime } from "../lib/dates";
 import { currentLanguage } from "../lib/currentLanguage";
+import { foldPlainQuotes } from "../lib/foldPlainQuotes";
 import { t } from "../lib/i18n";
 import { useT } from "../lib/useTranslate";
 import { authProblem, cleanMail, nameProblem, senderConfirmed } from "../lib/privacy";
@@ -196,7 +197,7 @@ function QuickReply({ to }: { to: string }) {
 }
 
 /** Plain-text mail, with web addresses turned into links that open in the browser. */
-function PlainText({ text, query }: { text: string; query: string }) {
+function LinkedText({ text, query }: { text: string; query: string }) {
   const showToast = useStore((s) => s.showToast);
   // Split keeps the addresses (odd positions) between the ordinary text (even positions).
   const parts = text.split(/(https?:\/\/[^\s<>"')\]]+)/g);
@@ -220,6 +221,25 @@ function PlainText({ text, query }: { text: string; query: string }) {
           <Marked key={i} text={part} query={query} />
         ),
       )}
+    </>
+  );
+}
+
+function PlainText({ text, query }: { text: string; query: string }) {
+  const tr = useT();
+  const folded = useMemo(() => foldPlainQuotes(text), [text]);
+  if (!folded) return <LinkedText text={text} query={query} />;
+  return (
+    <>
+      <LinkedText text={folded.head} query={query} />
+      <details className="openwren-quote mt-3">
+        <summary className="inline-block cursor-pointer list-none rounded-full bg-canvas px-2.5 py-0.5 text-xs text-ink3 select-none [&::-webkit-details-marker]:hidden">
+          {tr("reader.showQuoted")}
+        </summary>
+        <div className="mt-2 whitespace-pre-wrap text-ink2">
+          <LinkedText text={folded.quote} query={query} />
+        </div>
+      </details>
     </>
   );
 }

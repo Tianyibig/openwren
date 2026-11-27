@@ -20,7 +20,7 @@ Encrypted SQLCipher database, phishing and tracker protections, unsubscribe, Foc
 | Verification-code desktop notice | After inbox bodies download, unique OTP is shown in the system notification text |
 | Trash after copying a code | Settings → Notifications (off by default); reading-pane copy only; undo via toast |
 | Forgotten-attachment reminder | Composer warns before send when the draft mentions an attachment but has none |
-| Trailing quote fold | HTML replies fold the last blockquote / Gmail quote behind “Show quoted text” |
+| Trailing quote fold | HTML and plain-text replies fold the last quote behind “Show quoted text” |
 
 ## Next waves (not in this change)
 
