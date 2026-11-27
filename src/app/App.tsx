@@ -4,12 +4,13 @@ import { Settings } from "../features/Settings";
 import { FolderPane } from "../features/FolderPane";
 import { MessageList } from "../features/MessageList";
 import { Onboarding } from "../features/Onboarding";
+import { Overview } from "../features/Overview";
 import { ReadingPane } from "../features/ReadingPane";
 import { SourceView } from "../features/SourceView";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { Button } from "../components/ui";
 import { fontChoice, fontStack } from "../lib/font";
-import { useStore } from "../store";
+import { isOverview, useStore } from "../store";
 import { composing, isMac, mod } from "../lib/keys";
 import { useLang } from "../lib/useTranslate";
 import { REPOSITORY } from "../lib/links";
@@ -217,18 +218,27 @@ export function App() {
 
   const [folderWidth, setFolderWidth] = useState(220);
   const [listWidth, setListWidth] = useState(340);
+  const today = isOverview(folderId);
   return (
     <div className="relative flex h-full flex-col">
       <main className="flex min-h-0 flex-1 bg-card">
         <FolderPane width={folderWidth} />
         <Resizer value={folderWidth} min={160} max={360} onChange={setFolderWidth} label="Resize folder pane" />
-        <ErrorBoundary what="The message list" resetKey={folderId}>
-          <MessageList width={listWidth} />
-        </ErrorBoundary>
-        <Resizer value={listWidth} min={260} max={560} onChange={setListWidth} label="Resize message list" />
-        <ErrorBoundary what="This message" resetKey={messageId}>
-          <ReadingPane />
-        </ErrorBoundary>
+        {today ? (
+          <ErrorBoundary what="Today" resetKey={folderId}>
+            <Overview />
+          </ErrorBoundary>
+        ) : (
+          <>
+            <ErrorBoundary what="The message list" resetKey={folderId}>
+              <MessageList width={listWidth} />
+            </ErrorBoundary>
+            <Resizer value={listWidth} min={260} max={560} onChange={setListWidth} label="Resize message list" />
+            <ErrorBoundary what="This message" resetKey={messageId}>
+              <ReadingPane />
+            </ErrorBoundary>
+          </>
+        )}
       </main>
       {welcome && <Onboarding />}
       {!welcome && !dialog && <WhatsNewDialog />}

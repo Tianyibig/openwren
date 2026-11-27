@@ -2,6 +2,7 @@ import {
   IconArrowUpCircle,
   IconAlertCircle,
   IconArchive,
+  IconChevronRight,
   IconCircleCheck,
   IconDots,
   IconFolder,
@@ -14,12 +15,13 @@ import {
   IconSend,
   IconSettings,
   IconStar,
+  IconSun,
   IconTrash,
 } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import logo from "../../src-tauri/icons/128x128.png";
 import { Button, ContextMenu } from "../components/ui";
-import { ALL_INBOXES, allInboxes, useStore } from "../store";
+import { VIEW, isOverview, isVirtualView, useStore, virtualFolder } from "../store";
 import { useT } from "../lib/useTranslate";
 import type { Translate } from "../lib/useTranslate";
 import { DRAG_TYPE } from "./MessageList";
@@ -35,8 +37,29 @@ const icons: Record<FolderRole, typeof IconInbox> = {
   custom: IconFolder,
 };
 
-/** One folder. `label` replaces its name where that alone would be unclear (the pinned ones at the top). */
-function FolderRow({ folder, label, pinned }: { folder: Folder; label?: string; pinned?: boolean }) {
+const viewIcon: Record<number, typeof IconInbox> = {
+  [VIEW.overview]: IconSun,
+  [VIEW.inbox]: IconInbox,
+  [VIEW.flagged]: IconStar,
+  [VIEW.drafts]: IconPencil,
+  [VIEW.sent]: IconSend,
+  [VIEW.archive]: IconArchive,
+  [VIEW.junk]: IconMailOff,
+  [VIEW.trash]: IconTrash,
+};
+
+/** One folder or cross-account view row. */
+function FolderRow({
+  folder,
+  label,
+  pinned,
+  icon,
+}: {
+  folder: Folder;
+  label?: string;
+  pinned?: boolean;
+  icon?: typeof IconInbox;
+}) {
   const selected = useStore((s) => s.folderId === folder.id && !s.query.trim());
   const selectFolder = useStore((s) => s.selectFolder);
   const moveMessages = useStore((s) => s.moveMessages);
@@ -46,12 +69,9 @@ function FolderRow({ folder, label, pinned }: { folder: Folder; label?: string; 
   const [over, setOver] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const tr = useT();
-  // "All inboxes" is not a real folder: nothing can be moved into it or starred.
-  const real = folder.id !== ALL_INBOXES;
-  // A favourite shown at the top wears a star, so it is not mistaken for the folder in its account.
-  const Icon = pinned && real ? IconStar : icons[folder.role];
-  // The one name the interface gives a folder itself, rather than taking from the server.
-  const name = real ? (label ?? folder.name) : tr("folder.allInboxes");
+  const real = !isVirtualView(folder.id);
+  const Icon = icon ?? (pinned && real ? IconStar : icons[folder.role]);
+  const name = label ?? folder.name;
   const starLabel = folder.favorite ? tr("folder.removeFavorite") : tr("folder.addFavorite");
   return (
     <>
@@ -64,7 +84,6 @@ function FolderRow({ folder, label, pinned }: { folder: Folder; label?: string; 
           e.preventDefault();
           setMenu({ x: e.clientX, y: e.clientY });
         }}
-        // Messages dragged from the list can be dropped here to move them.
         onDragOver={(e) => {
           if (!real || !e.dataTransfer.types.includes(DRAG_TYPE)) return;
           e.preventDefault();
@@ -99,30 +118,95 @@ function FolderRow({ folder, label, pinned }: { folder: Folder; label?: string; 
   );
 }
 
-/** An account: its address as a quiet label, its standard folders, and the rest behind "More". */
-function AccountFolders({ address, folders }: { address: string; folders: Folder[] }) {
+/** Cross-account views at the top of the sidebar (MailX-style). */
+function TopViews({ folders }: { folders: Folder[] }) {
+  const tr = useT();
+  const folderId = useStore((s) => s.folderId);
+  const [more, setMore] = useState(false);
+  const primary: { id: number; label: string }[] = [
+    { id: VIEW.overview, label: tr("folder.today") },
+    { id: VIEW.inbox, label: tr("folder.inbox") },
+    { id: VIEW.flagged, label: tr("folder.starred") },
+    { id: VIEW.drafts, label: tr("folder.drafts") },
+    { id: VIEW.sent, label: tr("folder.sent") },
+  ];
+  const extra: { id: number; label: string }[] = [
+    { id: VIEW.archive, label: tr("folder.archive") },
+    { id: VIEW.junk, label: tr("folder.junk") },
+    { id: VIEW.trash, label: tr("folder.trash") },
+  ];
+  const showMore = more || extra.some((v) => v.id === folderId);
+  const row = (id: number, label: string) => {
+    if (id === VIEW.overview) {
+      return (
+        <button
+          key={id}
+          type="button"
+          onClick={() => useStore.getState().selectFolder(id)}
+          aria-current={isOverview(folderId)}
+          className={`flex w-full flex-none items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left ${isOverview(folderId) ? "bg-sel text-ink" : "text-ink2 hover:bg-hover"}`}
+        >
+          <IconSun size={18} stroke={1.6} className="flex-none" />
+          <span className="truncate">{label}</span>
+        </button>
+      );
+    }
+    const folder = virtualFolder(id, folders)!;
+    return <FolderRow key={id} folder={folder} label={label} icon={viewIcon[id]} />;
+  };
+  return (
+    <section className="flex flex-none flex-col gap-px pb-1">
+      {primary.map((v) => row(v.id, v.label))}
+      <button type="button" onClick={() => setMore(!showMore)} aria-expanded={showMore} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-ink2 hover:bg-hover">
+        <IconDots size={18} stroke={1.6} className="flex-none" />
+        {showMore ? tr("folder.less") : tr("folder.more")}
+      </button>
+      {showMore && extra.map((v) => row(v.id, v.label))}
+    </section>
+  );
+}
+
+/** An account: collapsed to one row by default when there are several (MailX-style). */
+function AccountFolders({ address, folders, startOpen }: { address: string; folders: Folder[]; startOpen: boolean }) {
   const selectedId = useStore((s) => s.folderId);
   const tr = useT();
   const main = folders.filter((f) => f.role !== "custom");
   const extra = folders.filter((f) => f.role === "custom");
-  // Open when the folder being shown is one of the extra ones, so the selection is never hidden.
-  const [open, setOpen] = useState(false);
-  const shown = open || extra.some((f) => f.id === selectedId);
+  const selectedHere = folders.some((f) => f.id === selectedId);
+  const [open, setOpen] = useState(startOpen || selectedHere);
+  const [more, setMore] = useState(false);
+  useEffect(() => {
+    if (selectedHere) setOpen(true);
+  }, [selectedHere]);
+  const shownExtra = more || extra.some((f) => f.id === selectedId);
+  const unread = folders.reduce((n, f) => n + (f.role === "junk" ? 0 : f.unread), 0);
   return (
     <section className="flex flex-none flex-col gap-px">
-      <p className="truncate px-2.5 pt-5 pb-1.5 text-xs text-ink3" title={address}>
-        {address}
-      </p>
-      {main.map((f) => (
-        <FolderRow key={f.id} folder={f} />
-      ))}
-      {extra.length > 0 && (
-        <button type="button" onClick={() => setOpen(!shown)} aria-expanded={shown} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-ink2 hover:bg-hover">
-          <IconDots size={18} stroke={1.6} className="flex-none" />
-          {shown ? tr("folder.less") : tr("folder.more")}
-        </button>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        title={address}
+        className="flex w-full items-center gap-1.5 rounded-lg px-2.5 pt-4 pb-1.5 text-left text-xs text-ink3 hover:bg-hover"
+      >
+        <IconChevronRight size={14} stroke={2} className={`flex-none transition-transform ${open ? "rotate-90" : ""}`} />
+        <span className="min-w-0 flex-1 truncate">{address}</span>
+        {!open && unread > 0 && <span className="flex-none text-ink3">{unread}</span>}
+      </button>
+      {open && (
+        <>
+          {main.map((f) => (
+            <FolderRow key={f.id} folder={f} />
+          ))}
+          {extra.length > 0 && (
+            <button type="button" onClick={() => setMore(!shownExtra)} aria-expanded={shownExtra} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-ink2 hover:bg-hover">
+              <IconDots size={18} stroke={1.6} className="flex-none" />
+              {shownExtra ? tr("folder.less") : tr("folder.more")}
+            </button>
+          )}
+          {shownExtra && extra.map((f) => <FolderRow key={f.id} folder={f} />)}
+        </>
       )}
-      {shown && extra.map((f) => <FolderRow key={f.id} folder={f} />)}
     </section>
   );
 }
@@ -170,7 +254,6 @@ function SyncStatus() {
   const accounts = useStore((s) => s.accounts);
   const progress = useStore((s) => s.progress);
   const tr = useT();
-  // Where the line is on screen while the list of accounts is open above it.
   const [open, setOpen] = useState<{ left: number; bottom: number } | null>(null);
   useEffect(() => {
     if (!open) return;
@@ -194,7 +277,7 @@ function SyncStatus() {
           setOpen({ left: box.left, bottom: window.innerHeight - box.top + 4 });
         }}
         title={tr("folder.clickForAccounts", { text })}
-        className={`flex w-full flex-none items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs hover:bg-hover mt-1 ${failed ? "text-danger" : "text-ink3"}`}
+        className={`mt-1 flex w-full flex-none items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs hover:bg-hover ${failed ? "text-danger" : "text-ink3"}`}
       >
         <Icon size={16} stroke={1.6} className={`flex-none ${busy && !failed ? "animate-spin" : ""}`} />
         <span className="truncate" role="status">
@@ -222,7 +305,6 @@ function SyncStatus() {
                   <div className="min-w-0 flex-1">
                     <div className="selectable truncate text-[13px] text-ink">{a.address}</div>
                     <div className={`selectable text-xs break-words ${bad ? "text-danger" : "text-ink2"}`}>{statusText(p, tr) || tr("sync.waiting")}</div>
-                    {/* What the failure means, above the engine's own words. */}
                     {p?.phase === "error" && p.kind && <div className="mt-0.5 text-xs text-danger">{tr(`error.${p.kind}`)}</div>}
                   </div>
                 </div>
@@ -270,7 +352,6 @@ export function FolderPane({ width }: { width: number }) {
   const setDialog = useStore((s) => s.setDialog);
   const tr = useT();
   const favorites = folders.filter((f) => f.favorite && f.role !== "inbox");
-  // With several accounts, a folder name alone does not say whose it is.
   const owner = (f: Folder) => (accounts.length > 1 ? `${f.name} · ${accounts.find((a) => a.id === f.accountId)?.address ?? ""}` : undefined);
   return (
     <nav className="flex flex-none flex-col bg-card px-2.5 pt-3.5 pb-2" style={{ width }} aria-label={tr("folder.pane")}>
@@ -286,21 +367,27 @@ export function FolderPane({ width }: { width: number }) {
         <IconPencil size={18} stroke={1.6} />
         {tr("folder.newMail")}
       </button>
-      {/* Only the folders scroll: the header above and the sync line below stay in place. */}
       <div className="-mx-2.5 flex min-h-0 flex-1 flex-col gap-px overflow-y-auto px-2.5">
-      {accounts.length > 0 && <FolderRow folder={allInboxes(folders)} />}
-      {favorites.map((f) => (
-        <FolderRow key={`fav-${f.id}`} folder={f} label={owner(f)} pinned />
-      ))}
-      {accounts.map((a) => (
-        <AccountFolders key={a.id} address={a.address} folders={folders.filter((f) => f.accountId === a.id)} />
-      ))}
-      {accounts.length === 0 && (
-        <button type="button" onClick={() => setDialog("add-account")} className="mt-2 flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-brand hover:bg-hover">
-          <IconPlus size={18} stroke={1.6} />
-          {tr("folder.addAccount")}
-        </button>
-      )}
+        {accounts.length > 0 && <TopViews folders={folders} />}
+        {favorites.length > 0 && (
+          <section className="flex flex-none flex-col gap-px border-t border-edge pt-2">
+            {favorites.map((f) => (
+              <FolderRow key={`fav-${f.id}`} folder={f} label={owner(f)} pinned />
+            ))}
+          </section>
+        )}
+        {accounts.length > 0 && (
+          <p className="px-2.5 pt-4 pb-1 text-xs text-ink3">{tr("folder.mailboxes")}</p>
+        )}
+        {accounts.map((a, i) => (
+          <AccountFolders key={a.id} address={a.address} folders={folders.filter((f) => f.accountId === a.id)} startOpen={accounts.length === 1 || i === 0} />
+        ))}
+        {accounts.length === 0 && (
+          <button type="button" onClick={() => setDialog("add-account")} className="mt-2 flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-brand hover:bg-hover">
+            <IconPlus size={18} stroke={1.6} />
+            {tr("folder.addAccount")}
+          </button>
+        )}
       </div>
       <UpdateNotice />
       <SyncStatus />

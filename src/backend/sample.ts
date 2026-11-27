@@ -229,10 +229,31 @@ const changed = (accountId: number) => listeners.forEach((l) => l(accountId));
 const named = (m: MessageDetail): MessageDetail => ({ ...m, folderName: folders.find((f) => f.id === m.folderId)?.name ?? "" });
 const newestFirst = (a: MessageDetail, b: MessageDetail) => b.date - a.date;
 const nowSeconds = () => Math.floor(Date.now() / 1000);
+/** Match a cross-account virtual view (-1…-7) or a real folder id. */
+const matchesView = (id: number, m: MessageDetail): boolean => {
+  const role = folders.find((f) => f.id === m.folderId)?.role;
+  switch (id) {
+    case -1:
+      return role === "inbox";
+    case -2:
+      return !!m.flagged && role !== "junk" && role !== "trash";
+    case -3:
+      return role === "drafts";
+    case -4:
+      return role === "sent";
+    case -5:
+      return role === "archive";
+    case -6:
+      return role === "junk";
+    case -7:
+      return role === "trash";
+    default:
+      return m.folderId === id;
+  }
+};
 const inFolder = (id: number, focused: boolean | null) =>
   messages
-    // Folder -1 is "All inboxes".
-    .filter((m) => (id === -1 ? folders.find((f) => f.id === m.folderId)?.role === "inbox" : m.folderId === id))
+    .filter((m) => matchesView(id, m))
     .filter((m) => (focused === null || m.focused === focused) && (m.snoozedUntil === null || m.snoozedUntil <= nowSeconds()))
     .sort(newestFirst)
     .map(named);
@@ -300,7 +321,7 @@ export const sampleBackend: Backend = {
   },
   markFolderRead: async (id) => {
     for (const m of messages) {
-      if (id === -1 ? folders.find((f) => f.id === m.folderId)?.role === "inbox" : m.folderId === id) m.unread = false;
+      if (matchesView(id, m)) m.unread = false;
     }
     changed(0);
   },

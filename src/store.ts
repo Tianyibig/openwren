@@ -38,17 +38,66 @@ export interface Toast {
   sendsAt?: number;
 }
 
-/** Folder id that stands for the inboxes of every account together. */
-export const ALL_INBOXES = -1;
+/**
+ * Cross-account virtual views and the Today overview (negative ids).
+ * Kept in sync with `src-tauri/src/db.rs`.
+ */
+export const VIEW = {
+  inbox: -1,
+  flagged: -2,
+  drafts: -3,
+  sent: -4,
+  archive: -5,
+  junk: -6,
+  trash: -7,
+  /** Lightweight overview pane; not a mail list. */
+  overview: -8,
+} as const;
 
-export function allInboxes(folders: Folder[]): Folder {
-  const unread = folders.filter((f) => f.role === "inbox").reduce((n, f) => n + f.unread, 0);
-  return { id: ALL_INBOXES, accountId: 0, name: "All inboxes", role: "inbox", favorite: true, unread };
+/** @deprecated Prefer VIEW.inbox — kept for older call sites. */
+export const ALL_INBOXES = VIEW.inbox;
+
+export function isVirtualView(id: number | null | undefined): boolean {
+  return typeof id === "number" && id <= VIEW.inbox && id >= VIEW.trash;
 }
 
-/** The folder being shown, which may be "All inboxes". */
+export function isOverview(id: number | null | undefined): boolean {
+  return id === VIEW.overview;
+}
+
+/** A synthetic folder for a cross-account view, with an unread total where it makes sense. */
+export function virtualFolder(id: number, folders: Folder[]): Folder | undefined {
+  const unreadOf = (role: Folder["role"]) => folders.filter((f) => f.role === role).reduce((n, f) => n + f.unread, 0);
+  switch (id) {
+    case VIEW.inbox:
+      return { id, accountId: 0, name: "Inbox", role: "inbox", favorite: true, unread: unreadOf("inbox") };
+    case VIEW.flagged:
+      // Starred has no cheap unread total; the list itself shows what is flagged.
+      return { id, accountId: 0, name: "Starred", role: "custom", favorite: true, unread: 0 };
+    case VIEW.drafts:
+      return { id, accountId: 0, name: "Drafts", role: "drafts", favorite: true, unread: unreadOf("drafts") };
+    case VIEW.sent:
+      return { id, accountId: 0, name: "Sent", role: "sent", favorite: true, unread: 0 };
+    case VIEW.archive:
+      return { id, accountId: 0, name: "Archive", role: "archive", favorite: true, unread: unreadOf("archive") };
+    case VIEW.junk:
+      return { id, accountId: 0, name: "Junk", role: "junk", favorite: true, unread: unreadOf("junk") };
+    case VIEW.trash:
+      return { id, accountId: 0, name: "Trash", role: "trash", favorite: true, unread: 0 };
+    default:
+      return undefined;
+  }
+}
+
+/** @deprecated Prefer virtualFolder(VIEW.inbox, folders). */
+export function allInboxes(folders: Folder[]): Folder {
+  return virtualFolder(VIEW.inbox, folders)!;
+}
+
+/** The folder being shown, which may be a cross-account view. */
 export function currentFolder(s: { folders: Folder[]; folderId: number | null }): Folder | undefined {
-  return s.folderId === ALL_INBOXES ? allInboxes(s.folders) : s.folders.find((f) => f.id === s.folderId);
+  if (s.folderId === null || isOverview(s.folderId)) return undefined;
+  return isVirtualView(s.folderId) ? virtualFolder(s.folderId, s.folders) : s.folders.find((f) => f.id === s.folderId);
 }
 
 const PAGE = 100;
@@ -391,8 +440,14 @@ export const useStore = create<State>((set, get) => {
     refresh: async () => {
       const [accounts, folders, saved] = await Promise.all([backend.listAccounts(), backend.listFolders(), backend.listDrafts()]);
       const current = get().folderId;
-      const kept = current === ALL_INBOXES ? accounts.length > 0 : folders.some((f) => f.id === current);
-      const folderId = kept ? current : (folders.find((f) => f.role === "inbox")?.id ?? null);
+      const kept =
+        current !== null && (isOverview(current) || isVirtualView(current) ? accounts.length > 0 : folders.some((f) => f.id === current));
+      // Prefer the cross-account Inbox when starting fresh with more than one account.
+      const folderId = kept
+        ? current
+        : accounts.length > 1
+          ? VIEW.inbox
+          : (folders.find((f) => f.role === "inbox")?.id ?? (accounts.length > 0 ? VIEW.inbox : null));
       const drafts = saved.flatMap((d): StoredDraft[] => {
         try {
           return [{ ...(JSON.parse(d.content) as Draft), id: d.id, accountId: d.accountId, updatedAt: d.updatedAt }];

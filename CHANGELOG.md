@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The folder pane opens with cross-account views at the top (Today, Inbox, Starred, Drafts, Sent, and More for Archive / Junk / Trash). Accounts below collapse by default when you have more than one.
+- Today is a quiet overview of unread mail, recent messages, and local drafts — not an AI dashboard.
+- Cross-account lists show which account a message belongs to when more than one account is signed in.
 - After signing in to IMAP, OpenWren announces itself with IMAP ID when the server supports it. NetEase (163 / 126 / yeah) and similar providers no longer block the client as “Unsafe Login” for lacking an identity.
 - Folder roles recognise common Chinese names (收件箱, 已发送, 垃圾邮件, …) when the server omits SPECIAL-USE marks.
 - Account presets for iCloud Mail (app-specific password, SMTP STARTTLS on 587), Feishu Mail and Lark Mail.

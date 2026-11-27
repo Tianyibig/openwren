@@ -6,7 +6,7 @@ Reference: [GuqierMcl/MailX](https://github.com/GuqierMcl/MailX) (Apache-2.0). O
 
 Encrypted SQLCipher database, phishing and tracker protections, unsubscribe, Focused/Other, snooze, rules, categories, pins, unlimited local search with server fallback, undo send / send later, English/Chinese UI, Chinese mailbox presets (QQ / 163 / 126 / yeah / 139 / Sina / Aliyun / Exmail).
 
-## Absorbed in this change
+## Absorbed so far
 
 | MailX advantage | OpenWren change |
 | --- | --- |
@@ -15,6 +15,8 @@ Encrypted SQLCipher database, phishing and tracker protections, unsubscribe, Foc
 | iCloud Mail preset | `imap.mail.me.com` + `smtp.mail.me.com:587` STARTTLS with app-specific password steps |
 | Feishu / Lark Mail presets | Organisation presets with dedicated-password guidance |
 | Verification-code shortcut | Local heuristic on subject + plain body; copy bar in the reading pane |
+| Sidebar top views | Cross-account Today / Inbox / Starred / Drafts / Sent (+ More); collapsible accounts |
+| Lightweight “Now” | Today overview of unread + recent mail + drafts — no AI, no MCP |
 
 ## Next waves (not in this change)
 

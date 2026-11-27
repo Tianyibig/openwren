@@ -5,7 +5,7 @@ import { groupLabel, shortTime } from "../lib/dates";
 import { authProblem, nameProblem } from "../lib/privacy";
 import { conversations, type Conversation } from "../lib/threads";
 import { useT } from "../lib/useTranslate";
-import { currentFolder, useStore } from "../store";
+import { VIEW, currentFolder, isVirtualView, useStore } from "../store";
 import type { Only } from "../store";
 import type { MessageSummary, StoredDraft } from "../types";
 import { messageMenu } from "./actions";
@@ -62,6 +62,9 @@ function Row({
   // What can be told without opening the message: failed sender checks, or a name the address does not match.
   const warn = useStore((s) => s.settings.phishing_warnings !== "off");
   const server = useStore((s) => s.accounts.find((a) => a.id === m.accountId)?.authServer);
+  const multiAccount = useStore((s) => s.accounts.length > 1);
+  const crossAccount = useStore((s) => isVirtualView(s.folderId));
+  const showAccount = multiAccount && (crossAccount || !!query);
   const suspicious = useMemo(() => (warn ? (authProblem(m.auth, server) ?? nameProblem(m.fromName, m.fromAddress)) : null), [warn, m.auth, server, m.fromName, m.fromAddress]);
   const date = new Date(m.date * 1000);
   return (
@@ -139,15 +142,18 @@ function Row({
           <Marked text={m.subject || tr("list.noSubject")} query={query} />
         </div>
         {/* A non-breaking space keeps the row height while the preview is still downloading. */}
-        <div className={`truncate ${m.unread ? "text-ink2" : "text-ink3"}`}>{query ? `${m.folderName} · ${m.accountAddress}` : m.preview || " "}</div>
+        <div className={`truncate ${m.unread ? "text-ink2" : "text-ink3"}`}>
+          {query ? `${m.folderName} · ${m.accountAddress}` : showAccount ? `${m.accountAddress} · ${m.preview || " "}` : m.preview || " "}
+        </div>
       </div>
     </div>
   );
 }
 
 /** A draft kept on this computer. Clicking it opens the composer again. */
-function DraftRow({ d, now }: { d: StoredDraft; now: Date }) {
+function DraftRow({ d, now, showAccount }: { d: StoredDraft; now: Date; showAccount?: boolean }) {
   const open = useStore((s) => s.draft?.id === d.id);
+  const account = useStore((s) => s.accounts.find((a) => a.id === d.accountId)?.address);
   const { openDraft, deleteDraft } = useStore.getState();
   const tr = useT();
   return (
@@ -167,7 +173,10 @@ function DraftRow({ d, now }: { d: StoredDraft; now: Date }) {
           <span className="flex-none text-xs whitespace-nowrap text-ink2 group-hover:invisible">{shortTime(new Date(d.updatedAt * 1000), now)}</span>
         </div>
         <div className="truncate">{d.subject || tr("list.noSubject")}</div>
-        <div className="truncate text-ink2">{d.html.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").trim() || " "}</div>
+        <div className="truncate text-ink2">
+          {showAccount && account ? `${account} · ` : ""}
+          {d.html.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").trim() || " "}
+        </div>
       </div>
       {/* The open draft is discarded from the composer, which knows about unsaved typing. */}
       {!open && (
@@ -251,8 +260,12 @@ export function MessageList({ width }: { width: number }) {
   );
   const shown: Section<Conversation>[] = pins.length ? [{ label: tr("list.pinned"), items: pins }, ...groups] : groups;
 
-  // Drafts written here are listed above the server's Drafts folder of the same account.
-  const drafts = useMemo(() => (!query && folder?.role === "drafts" ? allDrafts.filter((d) => d.accountId === folder.accountId) : []), [allDrafts, folder, query]);
+  // Drafts written here are listed above the server's Drafts folder. Cross-account Drafts shows every local draft.
+  const drafts = useMemo(() => {
+    if (query || folder?.role !== "drafts") return [];
+    if (folderId === VIEW.drafts) return allDrafts;
+    return allDrafts.filter((d) => d.accountId === folder.accountId);
+  }, [allDrafts, folder, folderId, query]);
   const empty = items.length === 0 && pinned.length === 0 && drafts.length === 0;
   return (
     <section className="flex flex-none flex-col overflow-hidden bg-card" style={{ width }} aria-label={tr("list.messages")}>
@@ -325,7 +338,7 @@ export function MessageList({ width }: { width: number }) {
           <div>
             <div className="border-b border-edge px-4 pt-3 pb-2 text-xs text-ink3">{tr("list.writtenHere")}</div>
             {drafts.map((d) => (
-              <DraftRow key={d.id} d={d} now={now} />
+              <DraftRow key={d.id} d={d} now={now} showAccount={folderId === VIEW.drafts} />
             ))}
           </div>
         )}

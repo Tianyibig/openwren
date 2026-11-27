@@ -205,11 +205,17 @@ pub fn list_folders(conn: &Connection) -> Result<Vec<Folder>> {
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
-/// Mark every message in a folder (or in all inboxes) as read here, and queue the
-/// same for the server. Returns the accounts to wake.
+/// Mark every message in a folder (or in a cross-account virtual view) as read
+/// here, and queue the same for the server. Returns the accounts to wake.
 pub fn mark_folder_read(conn: &Connection, folder_id: i64) -> Result<Vec<i64>> {
-    let mut stmt = conn.prepare("SELECT id, account_id, path FROM folders WHERE (?1 < 0 AND role = 'inbox') OR id = ?1")?;
-    let folders: Vec<(i64, i64, String)> = stmt.query_map([folder_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?.collect::<rusqlite::Result<_>>()?;
+    // Virtual views (-1 … -7) cover every folder of one role; a real id is one folder.
+    let role = virtual_role(folder_id);
+    let mut stmt = conn.prepare(
+        "SELECT id, account_id, path FROM folders WHERE (?2 IS NOT NULL AND role = ?2) OR id = ?1",
+    )?;
+    let folders: Vec<(i64, i64, String)> = stmt
+        .query_map(params![folder_id, role], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+        .collect::<rusqlite::Result<_>>()?;
     let mut accounts = Vec::new();
     for (id, account_id, path) in folders {
         let changed = conn.execute("UPDATE messages SET unread = 0 WHERE unread = 1 AND id IN (SELECT message_id FROM message_folders WHERE folder_id = ?1)", [id])?;
@@ -449,12 +455,41 @@ fn summary(r: &Row) -> rusqlite::Result<MessageSummary> {
     })
 }
 
-/// Passed as a folder id to list the inboxes of every account together.
+/// Cross-account virtual views (negative ids). Same numbers as the interface.
 pub const ALL_INBOXES: i64 = -1;
+pub const ALL_FLAGGED: i64 = -2;
+pub const ALL_DRAFTS: i64 = -3;
+pub const ALL_SENT: i64 = -4;
+pub const ALL_ARCHIVE: i64 = -5;
+pub const ALL_JUNK: i64 = -6;
+pub const ALL_TRASH: i64 = -7;
+
+/// The folder role a virtual view covers, if any.
+fn virtual_role(folder_id: i64) -> Option<&'static str> {
+    match folder_id {
+        ALL_INBOXES => Some("inbox"),
+        ALL_DRAFTS => Some("drafts"),
+        ALL_SENT => Some("sent"),
+        ALL_ARCHIVE => Some("archive"),
+        ALL_JUNK => Some("junk"),
+        ALL_TRASH => Some("trash"),
+        _ => None,
+    }
+}
 
 /// The SQL condition for "in this folder"; `?1` is the folder id.
 fn in_folder(folder_id: i64) -> &'static str {
-    if folder_id == ALL_INBOXES { "f.role = 'inbox' AND ?1 < 0" } else { "mf.folder_id = ?1" }
+    match folder_id {
+        ALL_INBOXES => "f.role = 'inbox' AND ?1 < 0",
+        // Starred mail across accounts, skipping Junk and Trash (MailX-style).
+        ALL_FLAGGED => "m.flagged = 1 AND f.role NOT IN ('junk', 'trash') AND ?1 < 0",
+        ALL_DRAFTS => "f.role = 'drafts' AND ?1 < 0",
+        ALL_SENT => "f.role = 'sent' AND ?1 < 0",
+        ALL_ARCHIVE => "f.role = 'archive' AND ?1 < 0",
+        ALL_JUNK => "f.role = 'junk' AND ?1 < 0",
+        ALL_TRASH => "f.role = 'trash' AND ?1 < 0",
+        _ => "mf.folder_id = ?1",
+    }
 }
 
 /// One page of a folder, newest first. `focused` filters the Focused / Other tabs.
@@ -1201,6 +1236,52 @@ mod tests {
         let readers = Readers::new(Vec::new());
         assert_eq!(readers.count(), 0);
         assert!(readers.check_out().is_err());
+    }
+
+    #[test]
+    fn virtual_views_list_mail_across_accounts() {
+        let conn = crate::store::open_in_memory().unwrap();
+        let a = insert_account(&conn, "a@example.test", "A", "imap", &AccountSettings::default()).unwrap();
+        let b = insert_account(&conn, "b@example.test", "B", "imap", &AccountSettings::default()).unwrap();
+        let a_inbox = upsert_folder(&conn, a, "INBOX", "Inbox", "inbox").unwrap();
+        let b_inbox = upsert_folder(&conn, b, "INBOX", "Inbox", "inbox").unwrap();
+        let a_sent = upsert_folder(&conn, a, "Sent", "Sent", "sent").unwrap();
+        let now = chrono::Utc::now().timestamp();
+        let put = |account: i64, folder: i64, subject: &str, flagged: bool| {
+            let header = Header {
+                subject: subject.into(),
+                from_name: "Sender".into(),
+                from_address: "s@example.test".into(),
+                date: Some(now),
+                ..Header::default()
+            };
+            insert_message(
+                &conn,
+                &NewMessage {
+                    account_id: account,
+                    folder_id: folder,
+                    uid: Some(folder as u32 + subject.len() as u32),
+                    header: &header,
+                    fallback_date: now,
+                    size: 10,
+                    unread: true,
+                    flagged,
+                },
+            )
+            .unwrap()
+        };
+        put(a, a_inbox, "A inbox", true);
+        put(b, b_inbox, "B inbox", false);
+        put(a, a_sent, "A sent", true);
+        let all = list_messages(&conn, ALL_INBOXES, None, 50, 0, now).unwrap();
+        assert_eq!(all.len(), 2, "both inboxes");
+        let starred = list_messages(&conn, ALL_FLAGGED, None, 50, 0, now).unwrap();
+        assert!(starred.iter().any(|m| m.subject == "A inbox"));
+        assert!(starred.iter().any(|m| m.subject == "A sent"), "starred includes Sent");
+        assert!(!starred.iter().any(|m| m.subject == "B inbox"));
+        let sent = list_messages(&conn, ALL_SENT, None, 50, 0, now).unwrap();
+        assert_eq!(sent.len(), 1);
+        assert_eq!(sent[0].subject, "A sent");
     }
 
     #[test]
