@@ -2,6 +2,7 @@ import interFile from "@fontsource-variable/inter/files/inter-latin-wght-normal.
 import nunitoFile from "@fontsource-variable/nunito/files/nunito-latin-wght-normal.woff2?url";
 import { useMemo, useRef, useState } from "react";
 import { Button } from "../components/ui";
+import { foldQuotes } from "../lib/foldQuotes";
 import { fontChoice, fontStack } from "../lib/font";
 import { useT } from "../lib/useTranslate";
 import { useStore } from "../store";
@@ -49,6 +50,7 @@ export function HtmlBody({ html, note, sender, confirmed }: { html: string; note
   // The frame runs no scripts, and in WebKit that also silences click handlers added
   // from outside. So every link is pointed at a blank page of the app itself, with
   // the real address after the #; `onLoad` sees the frame arrive there and opens it.
+  const quoteLabel = tr("reader.showQuoted");
   const framed = useMemo(() => {
     const parsed = new DOMParser().parseFromString(html, "text/html");
     const stop = new URL("link.html", window.location.href).href;
@@ -63,8 +65,9 @@ export function HtmlBody({ html, note, sender, confirmed }: { html: string; note
       if (!link.getAttribute("title")) link.setAttribute("title", href);
       link.setAttribute("href", `${stop}#${encodeURIComponent(href)}`);
     }
+    foldQuotes(parsed, quoteLabel);
     return parsed.body.innerHTML;
-  }, [html]);
+  }, [html, quoteLabel]);
   /** Bumped to draw the frame afresh after a link took it away. */
   const [shown, setShown] = useState(0);
   const openLink = useStore((s) => s.openLink);
@@ -91,6 +94,13 @@ export function HtmlBody({ html, note, sender, confirmed }: { html: string; note
   img { max-width: 100%; height: auto; }
   a { color: #1a64b0; }
   blockquote { margin: 0 0 0 8px; padding-left: 10px; border-left: 3px solid #e3e6ea; color: #5f6772; }
+  details.openwren-quote { margin: 12px 0 0; }
+  details.openwren-quote > summary {
+    display: inline-block; cursor: pointer; list-style: none;
+    padding: 2px 10px; border-radius: 999px; background: #eef1f4; color: #5f6772; font-size: 12px; user-select: none;
+  }
+  details.openwren-quote > summary::-webkit-details-marker { display: none; }
+  details.openwren-quote[open] > summary { margin-bottom: 8px; }
 </style></head><body>${framed}</body></html>`;
   }, [framed, images, font, systemFont, textSize]);
 
@@ -114,6 +124,8 @@ export function HtmlBody({ html, note, sender, confirmed }: { html: string; note
     const measure = () => setHeight(inner.documentElement.scrollHeight);
     measure();
     inner.querySelectorAll("img").forEach((i) => i.addEventListener("load", measure));
+    // Expanding a folded quote grows the frame; collapsing shrinks it.
+    inner.querySelectorAll("details.openwren-quote").forEach((el) => el.addEventListener("toggle", measure));
     // Links never navigate the frame; they open in the system browser.
     inner.addEventListener("click", (e) => {
       const link = (e.target as Element | null)?.closest?.("a[href]");

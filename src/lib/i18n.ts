@@ -208,6 +208,7 @@ export const MESSAGES: Record<string, { en: string; zh: string }> = {
   "reader.linkOne": { en: "tracking removed from 1 link", zh: "已去除 1 个链接上的追踪参数" },
   "reader.linkMany": { en: "tracking removed from {n} links", zh: "已去除 {n} 个链接上的追踪参数" },
 
+  "reader.showQuoted": { en: "Show quoted text", zh: "显示引用内容" },
   "reader.verificationCode": { en: "Verification code", zh: "验证码" },
   "reader.copyCode": { en: "Copy code", zh: "复制验证码" },
   "reader.codeCopied": { en: "Copied", zh: "已复制" },

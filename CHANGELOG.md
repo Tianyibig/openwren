@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Quoted replies in HTML mail are folded behind “Show quoted text”, so the new part of the message comes first. Forwards and quote-only messages are left as they are.
 - The folder pane opens with cross-account views at the top (Today, Inbox, Starred, Drafts, Sent, and More for Archive / Junk / Trash). Accounts below collapse by default when you have more than one.
 - Today is a quiet overview of unread mail, recent messages, and local drafts — not an AI dashboard.
 - Cross-account lists show which account a message belongs to when more than one account is signed in.
