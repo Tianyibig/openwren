@@ -59,15 +59,63 @@ async fn open(settings: &ImapSettings, secret: &Secret) -> Result<Session> {
             client
         }
     };
-    match secret {
+    let mut session = match secret {
         Secret::Password(password) => client
             .login(&settings.username, password)
             .await
-            .map_err(|(e, _)| Error(format!("The server did not accept the sign-in: {e}"))),
+            .map_err(|(e, _)| sign_in_error(&e.to_string(), false))?,
         Secret::OAuthToken(token) => client
             .authenticate("XOAUTH2", XOAuth2(crate::oauth::xoauth2(&settings.username, token)))
             .await
-            .map_err(|(e, _)| Error(format!("The server did not accept the Google sign-in: {e}"))),
+            .map_err(|(e, _)| sign_in_error(&e.to_string(), true))?,
+    };
+    // NetEase (163/126/yeah) and a few others refuse clients that never say who they are
+    // (IMAP ID, RFC 2971). The refusal is "Unsafe Login"; announcing ourselves first
+    // avoids it. Optional ID rejections are ignored; a timeout or lost connection is not.
+    identify(&mut session).await?;
+    Ok(session)
+}
+
+/// Turn a login refusal into the wording the interface already understands.
+fn sign_in_error(detail: &str, oauth: bool) -> Error {
+    let lower = detail.to_ascii_lowercase();
+    if lower.contains("unsafe login") {
+        return Error(
+            "This mail provider blocked the sign-in (Unsafe Login). OpenWren must announce itself with IMAP ID; if that already happened, turn IMAP on in the web mailbox and use an authorisation code.".into(),
+        );
+    }
+    if oauth {
+        Error(format!("The server did not accept the Google sign-in: {detail}"))
+    } else {
+        Error(format!("The server did not accept the sign-in: {detail}"))
+    }
+}
+
+/// Tell the server this is OpenWren when it advertises the ID capability.
+async fn identify(session: &mut Session) -> Result<()> {
+    let caps = match session.capabilities().await {
+        Ok(caps) => caps,
+        Err(_) => return Ok(()), // older servers: carry on without ID
+    };
+    if !caps.has_str("ID") {
+        return Ok(());
+    }
+    let command = format!(
+        "ID (\"name\" \"OpenWren\" \"version\" \"{}\")",
+        env!("CARGO_PKG_VERSION")
+    );
+    match session.run_command_and_check_ok(&command).await {
+        Ok(()) => Ok(()),
+        // A plain NO/BAD means the server declined optional identification; keep the session.
+        Err(e) => {
+            let text = e.to_string();
+            let lower = text.to_ascii_lowercase();
+            if lower.contains("unsafe login") {
+                Err(sign_in_error(&text, false))
+            } else {
+                Ok(())
+            }
+        }
     }
 }
 
@@ -91,6 +139,8 @@ pub struct RemoteFolder {
 }
 
 fn role_from_name(name: &str) -> &'static str {
+    // English names first (case folded), then the common Chinese labels Chinese
+    // providers use when they omit SPECIAL-USE attributes — same idea as MailX.
     match name.to_ascii_lowercase().as_str() {
         "inbox" => "inbox",
         "drafts" | "draft" => "drafts",
@@ -98,7 +148,15 @@ fn role_from_name(name: &str) -> &'static str {
         "trash" | "deleted items" | "deleted messages" | "bin" => "trash",
         "junk" | "spam" | "junk email" | "junk e-mail" | "bulk mail" => "junk",
         "archive" | "archives" => "archive",
-        _ => "custom",
+        _ => match name {
+            "收件箱" | "收件匣" => "inbox",
+            "草稿" | "草稿箱" | "草稿匣" => "drafts",
+            "已发送" | "已傳送" | "已发送邮件" | "已发送的邮件" | "发件箱" | "寄件备份" | "寄件備份" => "sent",
+            "已删除" | "已刪除" | "已删除邮件" | "废纸篓" | "廢紙簍" | "垃圾桶" | "回收站" => "trash",
+            "垃圾邮件" | "垃圾郵件" | "垃圾箱" | "垃圾" | "广告邮件" => "junk",
+            "归档" | "歸檔" | "已归档" | "封存" => "archive",
+            _ => "custom",
+        },
     }
 }
 
@@ -245,6 +303,19 @@ mod tests {
         assert_eq!(role_from_name("Spam"), "junk");
         assert_eq!(role_from_name("Deleted Messages"), "trash");
         assert_eq!(role_from_name("Invoices"), "custom");
+        assert_eq!(role_from_name("已发送"), "sent");
+        assert_eq!(role_from_name("垃圾邮件"), "junk");
+        assert_eq!(role_from_name("收件箱"), "inbox");
+        assert_eq!(role_from_name("草稿箱"), "drafts");
+    }
+
+    #[test]
+    fn unsafe_login_is_told_apart_from_a_wrong_password() {
+        let refused = sign_in_error("NO Unsafe Login. Please contact kefu@188.com for help", false);
+        assert!(refused.0.contains("Unsafe Login"), "{}", refused.0);
+        assert_eq!(refused.kind(), crate::error::Kind::Auth);
+        let wrong = sign_in_error("NO LOGIN failed", false);
+        assert!(wrong.0.contains("did not accept the sign-in"), "{}", wrong.0);
     }
 
     #[test]

@@ -33,6 +33,7 @@ import { t } from "../lib/i18n";
 import { useT } from "../lib/useTranslate";
 import { authProblem, cleanMail, nameProblem, senderConfirmed } from "../lib/privacy";
 import { fileSize } from "../lib/search";
+import { detectVerificationCode } from "../lib/verificationCode";
 import { useStore } from "../store";
 import { Composer } from "./Composer";
 import { HtmlBody } from "./HtmlBody";
@@ -47,6 +48,36 @@ function Centered({ children }: { children: React.ReactNode }) {
     <section className={`${shell} flex flex-col items-center justify-center gap-3 px-6 text-center text-ink2`} aria-label={tr("reader.pane")}>
       {children}
     </section>
+  );
+}
+
+/** A one-line bar that offers to copy a unique verification code from this message. */
+function VerificationCodeBar({ subject, body }: { subject: string; body: string }) {
+  const tr = useT();
+  const showToast = useStore((s) => s.showToast);
+  const found = useMemo(() => detectVerificationCode(subject, body), [subject, body]);
+  const [copied, setCopied] = useState(false);
+  if (found.status !== "found") return null;
+  const code = found.code;
+  return (
+    <div className="mb-3 flex flex-none items-center gap-3 rounded-[10px] bg-canvas px-3 py-2 text-sm text-ink" role="status">
+      <span className="text-ink2">{tr("reader.verificationCode")}</span>
+      <code className="font-mono text-base tracking-wider text-brand">{code}</code>
+      <Button
+        className="ml-auto h-7"
+        onClick={() => {
+          void navigator.clipboard.writeText(code).then(
+            () => {
+              setCopied(true);
+              window.setTimeout(() => setCopied(false), 1500);
+            },
+            () => showToast(tr("reader.copyCodeFailed")),
+          );
+        }}
+      >
+        {copied ? tr("reader.codeCopied") : tr("reader.copyCode")}
+      </Button>
+    </div>
   );
 }
 
@@ -485,6 +516,7 @@ export function ReadingPane() {
 
       {warnings.length > 0 && <Warning key={`warning-${m.id}`} id={m.id} reasons={warnings} />}
       {m.unsubscribe && !isDraft && <Unsubscribe key={`unsubscribe-${m.id}`} sender={m.fromName} kind={m.unsubscribe} to={m.unsubscribeTo ?? tr("reader.unsubTo")} />}
+      {!isDraft && <VerificationCodeBar key={`otp-${m.id}`} subject={m.subject} body={m.plain} />}
 
       {m.html ? (
         <HtmlBody key={`body-${m.id}`} sender={m.fromAddress} confirmed={senderConfirmed(m.auth, authServer)} html={cleaned?.html ?? m.html} note={trackerNote(cleaned?.pixels ?? 0, cleaned?.links ?? 0)} />

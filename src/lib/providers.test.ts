@@ -12,6 +12,13 @@ describe("providerForAddress", () => {
     expect(providerForAddress("anna@139.com")?.id).toBe("139");
   });
 
+  it("finds iCloud by its Apple domains", () => {
+    expect(providerForAddress("anna@icloud.com")?.id).toBe("icloud");
+    expect(providerForAddress("anna@me.com")?.id).toBe("icloud");
+    expect(providerForAddress("anna@mac.com")?.smtp.port).toBe(587);
+    expect(providerForAddress("anna@mac.com")?.smtp.security).toBe("starttls");
+  });
+
   it("follows the domain, and the case it was typed in", () => {
     expect(providerForAddress("ANNA@VIP.QQ.COM")?.id).toBe("qq");
     expect(providerForAddress("anna@foxmail.com")?.id).toBe("qq");
@@ -54,8 +61,10 @@ describe("the presets", () => {
         expect(host.port).toBeGreaterThan(0);
         expect(host.port).toBeLessThanOrEqual(65535);
         // A preset that suggested a plain connection would leak the password.
-        expect(host.security).toBe("tls");
+        // STARTTLS is allowed (iCloud SMTP); "none" is not.
+        expect(["tls", "starttls"]).toContain(host.security);
       }
+      expect(provider.imap.security).toBe("tls");
       // The instructions exist in both languages, so switching language leaves no gap.
       for (const language of ["en", "zh"] as const) {
         expect(provider.setup[language].title.trim()).not.toBe("");

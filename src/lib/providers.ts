@@ -38,6 +38,34 @@ export interface Provider {
 /** Providers with fixed servers, most used first. */
 export const PROVIDERS: Provider[] = [
   {
+    id: "icloud",
+    name: "iCloud Mail",
+    domains: ["icloud.com", "me.com", "mac.com"],
+    imap: { host: "imap.mail.me.com", port: 993, security: "tls" },
+    // Apple requires STARTTLS on 587 for SMTP; 465 is not the documented path.
+    smtp: { host: "smtp.mail.me.com", port: 587, security: "starttls" },
+    code: true,
+    setup: {
+      en: {
+        title: "iCloud Mail needs an app-specific password",
+        steps: [
+          "Turn on two-factor authentication for your Apple Account, and create a primary iCloud Mail address if you do not have one.",
+          "Open account.apple.com → Sign-In and Security → App-Specific Passwords, and create a password.",
+          "Paste that password here. Your ordinary Apple Account password does not work. If IMAP fails, try the local part of the address (before @) as the IMAP username in Advanced.",
+        ],
+      },
+      zh: {
+        title: "iCloud 邮箱需要应用专用密码",
+        steps: [
+          "为 Apple 账户开启双重认证，并确认已创建 iCloud 主邮箱地址。",
+          "打开 account.apple.com →「登录与安全」→「应用专用密码」，生成一个密码。",
+          "把该密码粘贴到这里；不能用 Apple 账户的登录密码。若 IMAP 登录失败，可在高级设置里把 IMAP 用户名改成 @ 前面的本地部分。",
+        ],
+      },
+    },
+    link: { url: "https://support.apple.com/en-us/102654", en: "How to create an app-specific password", zh: "如何创建应用专用密码" },
+  },
+  {
     id: "qq",
     name: "QQ Mail",
     domains: ["qq.com", "vip.qq.com", "foxmail.com"],
@@ -215,6 +243,60 @@ export const PROVIDERS: Provider[] = [
       },
     },
     link: { url: "https://mail.mxhichina.com", en: "Open Alibaba Mail", zh: "打开阿里企业邮箱" },
+  },
+  {
+    id: "feishu",
+    name: "Feishu Mail",
+    domains: [],
+    imap: { host: "imap.feishu.cn", port: 993, security: "tls" },
+    smtp: { host: "smtp.feishu.cn", port: 465, security: "tls" },
+    code: true,
+    setup: {
+      en: {
+        title: "Feishu Mail needs a dedicated password",
+        steps: [
+          "Ask your Feishu administrator to allow IMAP/SMTP for your organisation mailbox.",
+          "In Feishu Mail settings, create a client / app password for third-party mail apps.",
+          "Use your organisation address and that dedicated password here. Pick this preset by hand: organisation domains are not guessed.",
+        ],
+      },
+      zh: {
+        title: "飞书邮箱需要客户端专用密码",
+        steps: [
+          "请管理员为组织邮箱开启 IMAP/SMTP。",
+          "在飞书邮箱设置中生成第三方客户端专用密码。",
+          "在这里填写组织邮箱地址和该专用密码。企业域名不会自动识别，请手动选择本预设。",
+        ],
+      },
+    },
+    link: { url: "https://www.feishu.cn/hc/zh-CN", en: "Feishu Mail help", zh: "飞书邮箱帮助" },
+  },
+  {
+    id: "lark",
+    name: "Lark Mail",
+    domains: [],
+    imap: { host: "imap.larksuite.com", port: 993, security: "tls" },
+    smtp: { host: "smtp.larksuite.com", port: 465, security: "tls" },
+    code: true,
+    setup: {
+      en: {
+        title: "Lark Mail needs a dedicated password",
+        steps: [
+          "Ask your Lark administrator to allow IMAP/SMTP for your organisation mailbox.",
+          "In Lark Mail settings, create a client / app password for third-party mail apps.",
+          "Use your organisation address and that dedicated password here. Pick this preset by hand: organisation domains are not guessed.",
+        ],
+      },
+      zh: {
+        title: "Lark 邮箱需要客户端专用密码",
+        steps: [
+          "请管理员为组织邮箱开启 IMAP/SMTP。",
+          "在 Lark 邮箱设置中生成第三方客户端专用密码。",
+          "在这里填写组织邮箱地址和该专用密码。企业域名不会自动识别，请手动选择本预设。",
+        ],
+      },
+    },
+    link: { url: "https://www.larksuite.com/hc/en-US", en: "Lark Mail help", zh: "Lark 邮箱帮助" },
   },
 ];
 
