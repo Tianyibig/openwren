@@ -6,6 +6,7 @@ import { MessageList } from "../features/MessageList";
 import { Onboarding } from "../features/Onboarding";
 import { Overview } from "../features/Overview";
 import { ReadingPane } from "../features/ReadingPane";
+import { ShortcutHelp } from "../features/ShortcutHelp";
 import { SourceView } from "../features/SourceView";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { Button } from "../components/ui";
@@ -62,22 +63,36 @@ function typing(target: EventTarget | null): boolean {
 }
 
 /** Keyboard shortcuts, following Outlook's (PLAN.md 6.4). */
-function onShortcut(e: KeyboardEvent) {
+function onShortcut(e: KeyboardEvent, help: { open: boolean; set: (on: boolean) => void }) {
   // An input method that is still composing owns the keyboard: Enter picks a
   // candidate, the arrows move between them, and no shortcut may fire in between.
   if (composing(e)) return;
   const s = useStore.getState();
   if (s.dialog || s.welcome || s.whatsNew) return;
-  const key = e.key.toLowerCase();
-  if (mod(e) && key === "n") return e.preventDefault(), s.compose();
+  const key = e.key;
+  // ? opens or closes the shortcut list (Shift+/ on many layouts).
+  if (!typing(e.target) && !s.draft && !e.ctrlKey && !e.metaKey && !e.altKey && (key === "?" || (e.shiftKey && key === "/"))) {
+    e.preventDefault();
+    help.set(!help.open);
+    return;
+  }
+  if (help.open) {
+    if (key === "Escape") {
+      e.preventDefault();
+      help.set(false);
+    }
+    return;
+  }
+  const lower = key.toLowerCase();
+  if (mod(e) && lower === "n") return e.preventDefault(), s.compose();
   if (typing(e.target) || s.draft) return;
   const open = s.detail;
   const ids = s.targets();
-  if (mod(e) && e.shiftKey && key === "r") return e.preventDefault(), s.reply("reply-all");
-  if (mod(e) && key === "r") return e.preventDefault(), s.reply("reply");
-  if (mod(e) && key === "f") return e.preventDefault(), s.reply("forward");
-  if (mod(e) && key === "z") return e.preventDefault(), s.toast?.action?.run();
-  if (mod(e) && ((key === "q" && !isMac) || key === "u")) return e.preventDefault(), ids.forEach((id) => void s.setFlags(id, { unread: key === "u" }));
+  if (mod(e) && e.shiftKey && lower === "r") return e.preventDefault(), s.reply("reply-all");
+  if (mod(e) && lower === "r") return e.preventDefault(), s.reply("reply");
+  if (mod(e) && lower === "f") return e.preventDefault(), s.reply("forward");
+  if (mod(e) && lower === "z") return e.preventDefault(), s.toast?.action?.run();
+  if (mod(e) && ((lower === "q" && !isMac) || lower === "u")) return e.preventDefault(), ids.forEach((id) => void s.setFlags(id, { unread: lower === "u" }));
   if (e.ctrlKey || e.altKey || e.metaKey) return;
   if (e.key === "Delete" && ids.length) return e.preventDefault(), void s.deleteMessages(ids);
   if (e.key === "Backspace" && ids.length) return e.preventDefault(), void s.moveMessages(ids, { role: "archive" });
@@ -190,11 +205,13 @@ export function App() {
     document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
   }, [lang]);
 
+  const [helpOpen, setHelpOpen] = useState(false);
   useEffect(() => {
     void init();
-    window.addEventListener("keydown", onShortcut);
-    return () => window.removeEventListener("keydown", onShortcut);
-  }, [init]);
+    const onKey = (e: KeyboardEvent) => onShortcut(e, { open: helpOpen, set: setHelpOpen });
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [init, helpOpen]);
 
   const font = useStore((s) => fontChoice(s.settings.font));
   const systemFont = useStore((s) => s.systemFont);
@@ -241,9 +258,10 @@ export function App() {
         )}
       </main>
       {welcome && <Onboarding />}
-      {!welcome && !dialog && <WhatsNewDialog />}
+      {!welcome && !dialog && !helpOpen && <WhatsNewDialog />}
       {dialog === "add-account" && <AddAccount />}
       {dialog === "settings" && <Settings />}
+      {helpOpen && !dialog && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
       {sourceOf !== null && <SourceView key={sourceOf} id={sourceOf} />}
       <ToastBar />
     </div>

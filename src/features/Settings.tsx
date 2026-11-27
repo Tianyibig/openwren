@@ -1,4 +1,4 @@
-import { IconBell, IconCloudDownload, IconFilter, IconHeart, IconInfoCircle, IconPalette, IconShieldLock, IconSignature, IconTrash, IconUserCircle, IconX } from "@tabler/icons-react";
+import { IconBell, IconCloudDownload, IconFilter, IconHeart, IconInfoCircle, IconKeyboard, IconPalette, IconShieldLock, IconSignature, IconTrash, IconUserCircle, IconX } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import logo from "../../src-tauri/icons/128x128.png";
 import { backend, errorText } from "../backend";
@@ -16,6 +16,7 @@ import type { SettingsPage } from "../store";
 import type { OutboxItem, Rule, RulesSweep, SavedSignature } from "../types";
 import { statusText } from "./FolderPane";
 import { imageSenders } from "./HtmlBody";
+import { ShortcutList } from "./ShortcutHelp";
 
 const pages: [SettingsPage, string, typeof IconBell][] = [
   ["accounts", "settings.accounts", IconUserCircle],
@@ -25,6 +26,7 @@ const pages: [SettingsPage, string, typeof IconBell][] = [
   ["privacy", "settings.privacy", IconShieldLock],
   ["rules", "settings.rules", IconFilter],
   ["notifications", "settings.notifications", IconBell],
+  ["shortcuts", "settings.shortcuts", IconKeyboard],
   ["about", "settings.about", IconInfoCircle],
   ["sponsor", "settings.sponsor", IconHeart],
 ];
@@ -1117,6 +1119,16 @@ function Sponsor() {
   );
 }
 
+function Shortcuts() {
+  const tr = useT();
+  return (
+    <>
+      <p className="mb-4 text-[13px] text-ink2">{tr("shortcuts.pageNote")}</p>
+      <ShortcutList />
+    </>
+  );
+}
+
 const content: Record<SettingsPage, () => React.ReactNode> = {
   accounts: Accounts,
   signatures: Signatures,
@@ -1125,6 +1137,7 @@ const content: Record<SettingsPage, () => React.ReactNode> = {
   privacy: Privacy,
   rules: Rules,
   notifications: Notifications,
+  shortcuts: Shortcuts,
   about: About,
   sponsor: Sponsor,
 };

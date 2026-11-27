@@ -21,6 +21,7 @@ Encrypted SQLCipher database, phishing and tracker protections, unsubscribe, Foc
 | Trash after copying a code | Settings → Notifications (off by default); reading-pane copy only; undo via toast |
 | Forgotten-attachment reminder | Composer warns before send when the draft mentions an attachment but has none |
 | Trailing quote fold | HTML and plain-text replies fold the last quote behind “Show quoted text” (Outlook / QQ / Original Message too) |
+| Keyboard shortcut help | Press ? for an overlay; Settings → Shortcuts lists the same catalog |
 
 ## Next waves (not in this change)
 
