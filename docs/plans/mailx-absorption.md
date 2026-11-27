@@ -19,6 +19,7 @@ Encrypted SQLCipher database, phishing and tracker protections, unsubscribe, Foc
 | Lightweight “Now” | Today overview of unread + recent mail + drafts — no AI, no MCP |
 | Verification-code desktop notice | After inbox bodies download, unique OTP is shown in the system notification text |
 | Trash after copying a code | Settings → Notifications (off by default); reading-pane copy only; undo via toast |
+| Forgotten-attachment reminder | Composer warns before send when the draft mentions an attachment but has none |
 
 ## Next waves (not in this change)
 

@@ -7,6 +7,7 @@
 - Cross-account lists show which account a message belongs to when more than one account is signed in.
 - When new mail has a unique verification code, the desktop notification shows the code (after the body is downloaded). Detection stays on this computer; there is no OS “copy” button yet — open the mail or read the notice.
 - Settings → Notifications: optional “Move to Trash after copying a verification code” (off by default). Only the reading-pane copy button does this; the move can be undone from the toast.
+- Sending warns when the message mentions an attachment but none is attached. Add a file or send anyway. Replies and forwards ignore inherited subjects and only look at what you wrote.
 - After signing in to IMAP, OpenWren announces itself with IMAP ID when the server supports it. NetEase (163 / 126 / yeah) and similar providers no longer block the client as “Unsafe Login” for lacking an identity.
 - Folder roles recognise common Chinese names (收件箱, 已发送, 垃圾邮件, …) when the server omits SPECIAL-USE marks.
 - Account presets for iCloud Mail (app-specific password, SMTP STARTTLS on 587), Feishu Mail and Lark Mail.

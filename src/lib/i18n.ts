@@ -242,6 +242,12 @@ export const MESSAGES: Record<string, { en: string; zh: string }> = {
   "composer.subject": { en: "Subject", zh: "主题" },
   "composer.message": { en: "Message", zh: "正文" },
   "composer.attach": { en: "Attach", zh: "添加附件" },
+  "composer.attachmentMentioned": {
+    en: "This message mentions an attachment, but none is attached.",
+    zh: "这封邮件提到了附件，但还没有添加附件。",
+  },
+  "composer.addAttachment": { en: "Add attachment", zh: "添加附件" },
+  "composer.sendAnyway": { en: "Send anyway", zh: "仍要发送" },
   "composer.signature": { en: "Signature", zh: "签名" },
   "composer.noSignature": { en: "No signature", zh: "不使用签名" },
   "composer.quoteBelow": { en: "The original message is included below your text.", zh: "原文会附在你的内容下方。" },
