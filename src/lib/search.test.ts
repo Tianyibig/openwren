@@ -79,6 +79,13 @@ describe("searchMessages", () => {
     expect(searchMessages(all, "invoice", { ...none, accountId: 2 }, now).map((m) => m.tag)).toEqual(["y3"]);
     expect(searchMessages(all, "invoice", { ...none, hasAttachment: true }, now).map((m) => m.tag)).toEqual(["y1"]);
   });
+
+  it("matches from: by address or name", () => {
+    expect(searchMessages(all, 'from:"billing@nordicprint.example"', none, now).map((m) => m.tag)).toEqual(["recent", "y1", "other", "y3"]);
+    expect(searchMessages(all, "from:Nordic", none, now).map((m) => m.tag)).toEqual(["recent", "y1", "other", "y3"]);
+    expect(searchMessages(all, 'from:"nobody@example"', none, now)).toEqual([]);
+    expect(searchMessages([msg("solo", now, { fromAddress: "alice@example.com", fromName: "Alice" })], 'from:"alice@example.com"', none, now).map((m) => m.tag)).toEqual(["solo"]);
+  });
 });
 
 describe("highlight", () => {

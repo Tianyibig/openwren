@@ -133,6 +133,8 @@ export const MESSAGES: Record<string, { en: string; zh: string }> = {
   "list.searchPlaceholder": { en: "Search mail", zh: "搜索邮件" },
   "list.searchHint": { en: "Try from:name, has:attachment or before:2024-01-31", zh: "可试试 from:名字、has:attachment 或 before:2024-01-31" },
   "list.clearSearch": { en: "Clear search", zh: "清除搜索" },
+  "list.backToFolder": { en: "Back", zh: "返回" },
+  "list.contactMail": { en: "Mail from this contact", zh: "该联系人的邮件" },
   "list.resultOne": { en: "1 result", zh: "1 封结果" },
   "list.resultMany": { en: "{n} results", zh: "{n} 封结果" },
   "list.newestFirst": { en: "Newest first", zh: "最新在前" },
@@ -317,6 +319,7 @@ export const MESSAGES: Record<string, { en: string; zh: string }> = {
   "action.focusInbox": { en: "Always move sender to Focused", zh: "始终把该发件人移到「重点」" },
   "action.block": { en: "Block sender", zh: "屏蔽发件人" },
   "action.blockDomain": { en: "Block everyone at {domain}", zh: "屏蔽 {domain} 的所有人" },
+  "action.viewContact": { en: "Show mail from this contact", zh: "查看该联系人的邮件" },
   "action.viewSource": { en: "View source", zh: "查看原文" },
   "action.saveFile": { en: "Save as file…", zh: "另存为文件…" },
 

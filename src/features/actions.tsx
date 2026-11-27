@@ -9,6 +9,7 @@ import { IconBan, IconCode,
   IconPin,
   IconSparkles,
   IconTrash,
+  IconUser,
 } from "@tabler/icons-react";
 
 /** Mail services where each address is a different person. */
@@ -89,10 +90,14 @@ export function messageMenu(m: MessageSummary): MenuItem[] {
     { label: m.flagged ? tr("reader.removeFlag") : tr("reader.flag"), icon: <IconFlag size={16} />, onSelect: () => ids.forEach((id) => void s.setFlags(id, { flagged: !m.flagged })) },
   ];
   if (many) return items;
+  const sameContact = s.contactView?.address.toLowerCase() === m.fromAddress.toLowerCase();
   return [
     ...items,
     { label: m.pinned ? tr("reader.unpin") : tr("reader.pin"), icon: <IconPin size={16} />, onSelect: () => void s.setFlags(m.id, { pinned: !m.pinned }) },
     { label: tr("action.snoozeTomorrow"), icon: <IconClock size={16} />, onSelect: () => void s.snooze(m.id, snoozeTimes()[1].at) },
+    ...(!sameContact && m.fromAddress.trim()
+      ? [{ label: tr("action.viewContact"), icon: <IconUser size={16} />, onSelect: () => s.viewContact(m) }]
+      : []),
     "divider",
     { label: tr("action.sweep"), icon: <IconSparkles size={16} />, onSelect: () => void s.sweep(m.id), danger: true },
     ...(s.settings.focused_inbox !== "off" ? [{ label: m.focused ? tr("action.focusOther") : tr("action.focusInbox"), onSelect: () => void s.setSenderFocus(m.id, !m.focused) }] : []),

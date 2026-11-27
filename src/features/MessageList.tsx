@@ -1,4 +1,4 @@
-import { IconAlertTriangle, IconArchive, IconChevronRight, IconFlag, IconPaperclip, IconPin, IconSearch, IconTrash, IconX } from "@tabler/icons-react";
+import { IconAlertTriangle, IconArchive, IconChevronLeft, IconChevronRight, IconFlag, IconPaperclip, IconPin, IconSearch, IconTrash, IconX } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar, CategoryDot, ContextMenu, IconButton, Marked } from "../components/ui";
 import { groupLabel, shortTime } from "../lib/dates";
@@ -226,20 +226,27 @@ export function MessageList({ width }: { width: number }) {
   const typed = useStore((s) => s.query);
   const query = typed.trim();
   const setQuery = useStore((s) => s.setQuery);
+  const contactView = useStore((s) => s.contactView);
+  const leaveContact = useStore((s) => s.leaveContact);
   const only = useStore((s) => s.only);
   const setOnly = useStore((s) => s.setOnly);
   const search = useRef<HTMLInputElement>(null);
   // Ctrl+E (Outlook) jumps to the list search box. Ctrl+K opens the command palette instead.
+  // Esc leaves the contact view when that list is showing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (mod(e) && e.key.toLowerCase() === "e") {
         e.preventDefault();
         search.current?.focus();
       }
+      if (e.key === "Escape" && contactView && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
+        e.preventDefault();
+        leaveContact();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [contactView, leaveContact]);
   const searchServer = useStore((s) => s.searchServer);
   const tr = useT();
   const [menu, setMenu] = useState<{ x: number; y: number; m: MessageSummary } | null>(null);
@@ -248,8 +255,9 @@ export function MessageList({ width }: { width: number }) {
   const setSetting = useStore((s) => s.setSetting);
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
   // Moving to another folder or searching again starts with every conversation folded.
-  useEffect(() => setOpened(new Set()), [folderId, query, only]);
+  useEffect(() => setOpened(new Set()), [folderId, query, only, contactView?.address]);
   const threadOf = (m: MessageSummary) => (m.threadKey ? `${m.accountId}:${m.threadKey}` : null);
+  const listingContact = contactView !== null;
   const toggleThread = (key: string) =>
     setOpened((seen) => {
       const next = new Set(seen);
@@ -272,80 +280,119 @@ export function MessageList({ width }: { width: number }) {
   const groups = useMemo(() => {
     // One row per conversation when folded, one row per message otherwise.
     const rows = (list: MessageSummary[]): Conversation[] => (collapsed ? conversations(list) : list.map((m) => ({ head: m, members: [m] })));
-    if (query) return sections(rows(items), (r) => String(new Date(r.head.date * 1000).getFullYear()));
+    if (query || listingContact) return sections(rows(items), (r) => String(new Date(r.head.date * 1000).getFullYear()));
     return sections(
       rows(items.filter((m) => !m.pinned)),
       (r) => groupLabel(new Date(r.head.date * 1000), now),
     );
-  }, [items, query, now, collapsed]);
+  }, [items, query, listingContact, now, collapsed]);
   // Pinned mail is shown first, whichever folder it is in.
   const pins = (collapsed ? conversations(pinned) : pinned.map((m) => ({ head: m, members: [m] }))).filter(
     (r) => only === "all" || (only === "unread" ? r.head.unread : r.head.flagged),
   );
-  const shown: Section<Conversation>[] = pins.length ? [{ label: tr("list.pinned"), items: pins }, ...groups] : groups;
+  const shown: Section<Conversation>[] = !listingContact && pins.length ? [{ label: tr("list.pinned"), items: pins }, ...groups] : groups;
 
   // Drafts written here are listed above the server's Drafts folder. Cross-account Drafts shows every local draft.
   const drafts = useMemo(() => {
-    if (query || folder?.role !== "drafts") return [];
+    if (query || listingContact || folder?.role !== "drafts") return [];
     if (folderId === VIEW.drafts) return allDrafts;
     return allDrafts.filter((d) => d.accountId === folder.accountId);
-  }, [allDrafts, folder, folderId, query]);
+  }, [allDrafts, folder, folderId, query, listingContact]);
   const empty = items.length === 0 && pinned.length === 0 && drafts.length === 0;
   return (
     <section className="flex flex-none flex-col overflow-hidden bg-card" style={{ width }} aria-label={tr("list.messages")}>
       <div className="flex-none border-b border-edge px-4 pt-3.5 pb-3">
-        <label className={`flex h-9 items-center gap-2 rounded-lg px-3 ${typed ? "bg-card ring-1 ring-line" : "bg-canvas focus-within:bg-card focus-within:ring-1 focus-within:ring-line"}`}>
-          <IconSearch size={16} className="flex-none text-ink3" />
-          <input
-            ref={search}
-            value={typed}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Escape" && setQuery("")}
-            placeholder={tr("list.searchPlaceholder")}
-            title={tr("list.searchHint")}
-            aria-label={tr("list.searchPlaceholder")}
-            className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-ink3"
-          />
-          {typed ? (
-            <button type="button" aria-label={tr("list.clearSearch")} className="flex-none text-ink3 hover:text-ink" onClick={() => setQuery("")}>
-              <IconX size={16} />
-            </button>
-          ) : (
-            <span className="flex-none text-[11px] text-ink3">{MOD} E</span>
-          )}
-        </label>
-        {query ? (
-          <>
-            <SearchChips />
-            <div className="mt-2 flex items-baseline text-xs text-ink2">
-              <span className="text-ink">{items.length === 1 ? tr("list.resultOne") : tr("list.resultMany", { n: items.length })}</span>
-              <span className="ml-auto">{tr("list.newestFirst")}</span>
-            </div>
-          </>
-        ) : (
-          <div className="mt-2.5 flex flex-wrap items-center gap-1.5" role="toolbar" aria-label={tr("list.show")}>
-            {chips.map(([value, name]) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={only === value}
-                onClick={() => setOnly(value)}
-                className={`h-7 rounded-full px-3 text-[13px] ${only === value ? "bg-soft text-brand" : "border border-edge text-ink2 hover:bg-hover"}`}
-              >
-                {name}
-              </button>
-            ))}
-            {/* Folding is a choice about this list, so the switch sits with the filters. */}
+        {listingContact && contactView ? (
+          <div className="flex items-start gap-2">
             <button
               type="button"
-              aria-pressed={collapsed}
-              title={tr("list.threadsHint")}
-              onClick={() => void setSetting("threads", collapsed ? "off" : "on")}
-              className={`ml-auto h-7 rounded-full px-3 text-[13px] ${collapsed ? "bg-soft text-brand" : "border border-edge text-ink2 hover:bg-hover"}`}
+              onClick={() => leaveContact()}
+              className="mt-0.5 flex flex-none items-center gap-0.5 rounded-lg px-1.5 py-1 text-ink2 hover:bg-hover hover:text-ink"
+              aria-label={tr("list.backToFolder")}
             >
-              {tr("list.threads")}
+              <IconChevronLeft size={18} />
             </button>
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-medium text-ink" title={contactView.name}>
+                {contactView.name}
+              </div>
+              <div className="truncate text-xs text-ink3" title={contactView.address}>
+                {contactView.address}
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5" role="toolbar" aria-label={tr("list.show")}>
+                {chips.filter(([value]) => value !== "other").map(([value, name]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={only === value}
+                    onClick={() => setOnly(value)}
+                    className={`h-7 rounded-full px-3 text-[13px] ${only === value ? "bg-soft text-brand" : "border border-edge text-ink2 hover:bg-hover"}`}
+                  >
+                    {name}
+                  </button>
+                ))}
+                <span className="ml-auto text-xs text-ink3">
+                  {items.length === 1 ? tr("list.resultOne") : tr("list.resultMany", { n: items.length })}
+                </span>
+              </div>
+            </div>
           </div>
+        ) : (
+          <>
+            <label className={`flex h-9 items-center gap-2 rounded-lg px-3 ${typed ? "bg-card ring-1 ring-line" : "bg-canvas focus-within:bg-card focus-within:ring-1 focus-within:ring-line"}`}>
+              <IconSearch size={16} className="flex-none text-ink3" />
+              <input
+                ref={search}
+                value={typed}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Escape" && setQuery("")}
+                placeholder={tr("list.searchPlaceholder")}
+                title={tr("list.searchHint")}
+                aria-label={tr("list.searchPlaceholder")}
+                className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-ink3"
+              />
+              {typed ? (
+                <button type="button" aria-label={tr("list.clearSearch")} className="flex-none text-ink3 hover:text-ink" onClick={() => setQuery("")}>
+                  <IconX size={16} />
+                </button>
+              ) : (
+                <span className="flex-none text-[11px] text-ink3">{MOD} E</span>
+              )}
+            </label>
+            {query ? (
+              <>
+                <SearchChips />
+                <div className="mt-2 flex items-baseline text-xs text-ink2">
+                  <span className="text-ink">{items.length === 1 ? tr("list.resultOne") : tr("list.resultMany", { n: items.length })}</span>
+                  <span className="ml-auto">{tr("list.newestFirst")}</span>
+                </div>
+              </>
+            ) : (
+              <div className="mt-2.5 flex flex-wrap items-center gap-1.5" role="toolbar" aria-label={tr("list.show")}>
+                {chips.map(([value, name]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={only === value}
+                    onClick={() => setOnly(value)}
+                    className={`h-7 rounded-full px-3 text-[13px] ${only === value ? "bg-soft text-brand" : "border border-edge text-ink2 hover:bg-hover"}`}
+                  >
+                    {name}
+                  </button>
+                ))}
+                {/* Folding is a choice about this list, so the switch sits with the filters. */}
+                <button
+                  type="button"
+                  aria-pressed={collapsed}
+                  title={tr("list.threadsHint")}
+                  onClick={() => void setSetting("threads", collapsed ? "off" : "on")}
+                  className={`ml-auto h-7 rounded-full px-3 text-[13px] ${collapsed ? "bg-soft text-brand" : "border border-edge text-ink2 hover:bg-hover"}`}
+                >
+                  {tr("list.threads")}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
       <div
@@ -390,20 +437,22 @@ export function MessageList({ width }: { width: number }) {
         ))}
         {empty && (
           <p className="px-4 py-10 text-center text-ink2">
-            {query
+            {listingContact
               ? tr("list.noMatch")
-              : !folder
-                ? tr("list.needAccount")
-                : only === "other"
-                  ? tr("list.noMailings")
-                  : only === "unread"
-                    ? tr("list.noUnread")
-                    : only === "flagged"
-                      ? tr("list.noFlagged")
-                      : tr("list.emptyFolder")}
+              : query
+                ? tr("list.noMatch")
+                : !folder
+                  ? tr("list.needAccount")
+                  : only === "other"
+                    ? tr("list.noMailings")
+                    : only === "unread"
+                      ? tr("list.noUnread")
+                      : only === "flagged"
+                        ? tr("list.noFlagged")
+                        : tr("list.emptyFolder")}
           </p>
         )}
-        {query && (
+        {query && !listingContact && (
           <button type="button" onClick={() => void searchServer()} className="mx-auto my-2 block rounded-full px-3 py-1.5 text-brand hover:bg-hover">
             {tr("list.searchServer")}
           </button>

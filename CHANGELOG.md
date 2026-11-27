@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Right-click a message → “Show mail from this contact” lists that sender’s mail across folders (junk and trash excluded). Back or Esc returns.
 - Hover a message in the list for quick actions: archive, delete, flag, and pin (same pattern as drafts).
 - Press ? for a keyboard shortcut list, also under Settings → Shortcuts.
 - Ctrl+K (⌘K) opens a command palette: search mail, jump to a folder, or run a command. Ctrl+E still focuses the list search box.

@@ -24,6 +24,7 @@ Encrypted SQLCipher database, phishing and tracker protections, unsubscribe, Foc
 | Keyboard shortcut help | Press ? for an overlay; Settings → Shortcuts lists the same catalog |
 | Command palette | Ctrl/⌘K: search, jump to views/folders, compose / settings / sync / theme |
 | List-row hover actions | Archive · delete · flag · pin on hover (same rail as draft discard) |
+| Show mail from contact | Context menu opens a sender list (junk/trash excluded); Back / Esc leave |
 
 ## Next waves (not in this change)
 

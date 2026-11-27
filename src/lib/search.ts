@@ -21,19 +21,36 @@ export function terms(query: string): string[] {
   return query.toLowerCase().split(/\s+/).filter(Boolean);
 }
 
+/** Split free words from operators such as `from:"a@b.com"` (sample backend). */
+function parseQuery(query: string): { words: string[]; from: string | null } {
+  let from: string | null = null;
+  const words: string[] = [];
+  const re = /(?:^|\s)(from):(?:"([^"]+)"|(\S+))/gi;
+  let rest = query;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(query)) !== null) {
+    from = (match[2] ?? match[3] ?? "").toLowerCase();
+    rest = rest.replace(match[0], " ");
+  }
+  words.push(...terms(rest));
+  return { words, from };
+}
+
 /**
  * Search for the sample backend. The desktop app uses the SQLite full-text
  * index instead (src-tauri/src/db.rs), with the same filters and order.
  */
 export function searchMessages<T extends MessageDetail>(messages: T[], query: string, filters: SearchFilters, now: Date): T[] {
-  const words = terms(query);
-  if (words.length === 0) return [];
+  const { words, from } = parseQuery(query);
+  if (words.length === 0 && !from) return [];
   return messages
     .filter((m) => {
       if (filters.accountId !== null && m.accountId !== filters.accountId) return false;
       if (filters.hasAttachment && !m.hasAttachment) return false;
       if (!matchesDate(new Date(m.date * 1000), filters.date, now)) return false;
       if (filters.date === "custom" && ((filters.after !== null && m.date < filters.after) || (filters.before !== null && m.date >= filters.before))) return false;
+      if (from && !m.fromAddress.toLowerCase().includes(from) && !m.fromName.toLowerCase().includes(from)) return false;
+      if (words.length === 0) return true;
       const hay = [m.fromName, m.fromAddress, m.to, m.subject, m.plain].join("\n").toLowerCase();
       return words.every((w) => hay.includes(w));
     })

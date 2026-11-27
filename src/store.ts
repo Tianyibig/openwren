@@ -126,6 +126,8 @@ interface State {
   thread: MessageSummary[];
   query: string;
   filters: SearchFilters;
+  /** List all mail from one sender (MailX “Show mail from this contact”). */
+  contactView: { address: string; name: string; backFolderId: number | null } | null;
   /** The open draft, or null when the composer is closed. */
   draft: Draft | null;
   /** Drafts saved on this computer, newest first. */
@@ -167,6 +169,9 @@ interface State {
   step: (direction: 1 | -1) => void;
   setQuery: (query: string) => void;
   setFilters: (patch: Partial<SearchFilters>) => void;
+  /** Show every message from this sender (junk and trash excluded). */
+  viewContact: (m: { fromAddress: string; fromName: string }) => void;
+  leaveContact: () => void;
   searchServer: () => Promise<void>;
   setFlags: (id: number, flags: Flags) => Promise<void>;
   /** The messages an action applies to: the ticked ones, or the open one. */
@@ -302,12 +307,27 @@ export const useStore = create<State>((set, get) => {
     return [only === "other" ? false : null, only === "unread" || only === "flagged" ? only : null];
   };
 
+  /** Drop junk/trash and tighten `from:` matches when viewing a contact. */
+  function refineContact(items: MessageSummary[]): MessageSummary[] {
+    const { contactView, folders, only } = get();
+    if (!contactView) return items;
+    const address = contactView.address.toLowerCase();
+    const excluded = new Set(
+      folders.filter((f) => f.role === "junk" || f.role === "trash").map((f) => f.id),
+    );
+    let out = items.filter((m) => m.fromAddress.toLowerCase() === address && !excluded.has(m.folderId));
+    if (only === "unread") out = out.filter((m) => m.unread);
+    else if (only === "flagged") out = out.filter((m) => m.flagged);
+    return out;
+  }
+
   /** Load the list for the current folder, tab and search. */
   async function loadList(keepLength: boolean) {
     const request = ++listRequest;
-    const { query, filters } = get();
-    if (query.trim()) {
-      const items = await backend.search(query, filters);
+    const { query, filters, contactView } = get();
+    if (query.trim() || contactView) {
+      const q = query.trim() || (contactView ? `from:"${contactView.address}"` : "");
+      const items = refineContact(await backend.search(q, filters));
       if (request === listRequest) set({ items, pinned: [], hasMore: false });
       return;
     }
@@ -388,6 +408,7 @@ export const useStore = create<State>((set, get) => {
     thread: [],
     query: "",
     filters: noFilters,
+    contactView: null,
     draft: null,
     drafts: [],
     dialog: null,
@@ -487,7 +508,7 @@ export const useStore = create<State>((set, get) => {
     },
 
     selectFolder: (folderId) => {
-      set({ folderId, only: "all", messageId: null, selected: [], detail: null, detailError: null, thread: [], query: "", filters: noFilters, draft: null, items: [], pinned: [] });
+      set({ folderId, only: "all", messageId: null, selected: [], detail: null, detailError: null, thread: [], query: "", filters: noFilters, contactView: null, draft: null, items: [], pinned: [] });
       void loadList(false);
     },
 
@@ -556,8 +577,8 @@ export const useStore = create<State>((set, get) => {
     },
 
     setQuery: (query) => {
-      const wasSearching = get().query.trim() !== "";
-      set({ query });
+      const wasSearching = get().query.trim() !== "" || get().contactView !== null;
+      set({ query, contactView: null });
       clearTimeout(searchTimer);
       if (!query.trim()) {
         if (wasSearching) {
@@ -571,6 +592,40 @@ export const useStore = create<State>((set, get) => {
 
     setFilters: (change) => {
       set((s) => ({ filters: { ...s.filters, ...change } }));
+      void loadList(false);
+    },
+
+    viewContact: (m) => {
+      const address = m.fromAddress.trim();
+      if (!address) return;
+      const { folderId, contactView } = get();
+      if (contactView && contactView.address.toLowerCase() === address.toLowerCase()) return;
+      set({
+        contactView: { address, name: m.fromName || address, backFolderId: folderId },
+        query: `from:"${address}"`,
+        only: "all",
+        filters: noFilters,
+        messageId: null,
+        selected: [],
+        detail: null,
+        detailError: null,
+        thread: [],
+        draft: null,
+        items: [],
+        pinned: [],
+      });
+      void loadList(false);
+    },
+
+    leaveContact: () => {
+      const { contactView } = get();
+      if (!contactView) return;
+      const back = contactView.backFolderId;
+      set({ contactView: null, query: "", filters: noFilters, messageId: null, selected: [], detail: null, thread: [], items: [], pinned: [] });
+      if (back !== null && back !== get().folderId) {
+        get().selectFolder(back);
+        return;
+      }
       void loadList(false);
     },
 
