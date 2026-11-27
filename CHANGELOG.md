@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Hover a message in the list for quick actions: archive, delete, flag, and pin (same pattern as drafts).
 - Press ? for a keyboard shortcut list, also under Settings → Shortcuts.
 - Ctrl+K (⌘K) opens a command palette: search mail, jump to a folder, or run a command. Ctrl+E still focuses the list search box.
 - Quoted replies in HTML mail are folded behind “Show quoted text”, so the new part of the message comes first. Forwards and quote-only messages are left as they are.

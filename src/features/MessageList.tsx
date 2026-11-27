@@ -1,4 +1,4 @@
-import { IconAlertTriangle, IconChevronRight, IconFlag, IconPaperclip, IconPin, IconSearch, IconTrash, IconX } from "@tabler/icons-react";
+import { IconAlertTriangle, IconArchive, IconChevronRight, IconFlag, IconPaperclip, IconPin, IconSearch, IconTrash, IconX } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar, CategoryDot, ContextMenu, IconButton, Marked } from "../components/ui";
 import { groupLabel, shortTime } from "../lib/dates";
@@ -67,6 +67,7 @@ function Row({
   const showAccount = multiAccount && (crossAccount || !!query);
   const suspicious = useMemo(() => (warn ? (authProblem(m.auth, server) ?? nameProblem(m.fromName, m.fromAddress)) : null), [warn, m.auth, server, m.fromName, m.fromAddress]);
   const date = new Date(m.date * 1000);
+  const { moveMessages, deleteMessages, setFlags } = useStore.getState();
   return (
     <div
       role="option"
@@ -91,7 +92,7 @@ function Row({
       // Rows run edge to edge and are divided by hairlines. Unread mail is bold, with a dot and a blue time;
       // once read, the sender and subject drop to regular weight and the subject turns grey.
       // A message shown under its conversation is indented, so the grouping is visible.
-      className={`flex cursor-default gap-3 border-b border-edge px-4 ${nested ? "pl-9" : ""} ${open || ticked ? "bg-sel" : "hover:bg-hover"}`}
+      className={`group relative flex cursor-default gap-3 border-b border-edge px-4 ${nested ? "pl-9" : ""} ${open || ticked ? "bg-sel" : "hover:bg-hover"}`}
     >
       <Avatar name={m.fromName} address={m.fromAddress} auth={m.auth} accountId={m.accountId} />
       <div className="min-w-0 flex-1">
@@ -136,7 +137,7 @@ function Row({
             {m.flagged && <IconFlag size={14} className="text-danger" />}
             {m.pinned && <IconPin size={14} className="text-brand" />}
           </span>
-          <span className={`ml-auto flex-none pl-1 text-xs whitespace-nowrap ${m.unread ? "text-brand" : "text-ink3"}`}>{shortTime(date, now)}</span>
+          <span className={`ml-auto flex-none pl-1 text-xs whitespace-nowrap group-hover:invisible ${m.unread ? "text-brand" : "text-ink3"}`}>{shortTime(date, now)}</span>
         </div>
         <div className={`truncate ${m.unread ? "font-semibold text-ink" : "text-ink2"}`}>
           <Marked text={m.subject || tr("list.noSubject")} query={query} />
@@ -145,6 +146,29 @@ function Row({
         <div className={`truncate ${m.unread ? "text-ink2" : "text-ink3"}`}>
           {query ? `${m.folderName} · ${m.accountAddress}` : showAccount ? `${m.accountAddress} · ${m.preview || " "}` : m.preview || " "}
         </div>
+      </div>
+      {/* Hover rail: archive · delete · flag · pin (product-plan §6.3), like MailX email-card. */}
+      <div className="absolute top-6 right-1.5 hidden rounded-lg bg-card shadow-sm group-hover:flex" onClick={(e) => e.stopPropagation()}>
+        <IconButton label={tr("reader.archive")} className="size-7" onClick={() => void moveMessages([m.id], { role: "archive" })}>
+          <IconArchive size={16} />
+        </IconButton>
+        <IconButton label={tr("reader.delete")} className="size-7" onClick={() => void deleteMessages([m.id])}>
+          <IconTrash size={16} />
+        </IconButton>
+        <IconButton
+          label={m.flagged ? tr("reader.removeFlag") : tr("reader.flag")}
+          className={`size-7 ${m.flagged ? "text-danger" : ""}`}
+          onClick={() => void setFlags(m.id, { flagged: !m.flagged })}
+        >
+          <IconFlag size={16} />
+        </IconButton>
+        <IconButton
+          label={m.pinned ? tr("reader.unpin") : tr("reader.pin")}
+          className={`size-7 ${m.pinned ? "text-brand" : ""}`}
+          onClick={() => void setFlags(m.id, { pinned: !m.pinned })}
+        >
+          <IconPin size={16} />
+        </IconButton>
       </div>
     </div>
   );

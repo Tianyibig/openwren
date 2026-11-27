@@ -23,6 +23,7 @@ Encrypted SQLCipher database, phishing and tracker protections, unsubscribe, Foc
 | Trailing quote fold | HTML and plain-text replies fold the last quote behind “Show quoted text” (Outlook / QQ / Original Message too) |
 | Keyboard shortcut help | Press ? for an overlay; Settings → Shortcuts lists the same catalog |
 | Command palette | Ctrl/⌘K: search, jump to views/folders, compose / settings / sync / theme |
+| List-row hover actions | Archive · delete · flag · pin on hover (same rail as draft discard) |
 
 ## Next waves (not in this change)
 
