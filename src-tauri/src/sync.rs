@@ -11,11 +11,20 @@ use crate::imap::{self, Session};
 use crate::model::Progress;
 use crate::parse;
 
+/// One newly arrived inbox message, for desktop notification after bodies are ready.
+#[derive(Clone)]
+pub struct ArrivedMail {
+    pub id: i64,
+    pub from: String,
+    pub subject: String,
+}
+
 /// How the sync engine reports to the outside (the UI in the app, nothing in tests).
 pub trait Notifier: Send + Sync {
     fn progress(&self, progress: Progress);
-    /// New unread mail arrived in the inbox after the first sync: (sender, subject) each.
-    fn new_mail(&self, _account_id: i64, _mail: &[(String, String)]) {}
+    /// New unread mail arrived in the inbox after the first sync.
+    /// `code` is set when a unique verification code was found in the local body.
+    fn new_mail(&self, _account_id: i64, _mail: &[(String, String, Option<String>)]) {}
     /// Folders or messages of this account changed; lists should be re-read.
     fn changed(&self, account_id: i64);
 }
@@ -54,18 +63,41 @@ pub async fn sync_headers(db: &Db, session: &mut Session, account_id: i64, notif
     // Inbox first, so the most useful mail appears first.
     let mut ordered = folders;
     ordered.sort_by_key(|f| !f.1.eq_ignore_ascii_case("INBOX"));
+    let mut arrived = Vec::new();
     for (folder_id, path, name) in ordered {
-        sync_folder(db, session, account_id, folder_id, &path, &name, notifier).await?;
+        arrived.extend(sync_folder(db, session, account_id, folder_id, &path, &name, notifier).await?);
         if path.eq_ignore_ascii_case("INBOX") {
             // The newest mail is what gets opened first: download its text now,
-            // before the other folders, so it opens without a wait.
+            // before the other folders, so it opens without a wait — and so a
+            // verification-code notification can include the code itself.
             sync_bodies(db, session, account_id, NEWEST_FIRST, 0, notifier).await?;
         }
+    }
+    if !arrived.is_empty() {
+        notify_arrived(db, account_id, &arrived, notifier);
     }
     Ok(())
 }
 
-async fn sync_folder(db: &Db, session: &mut Session, account_id: i64, folder_id: i64, path: &str, name: &str, notifier: &dyn Notifier) -> Result<()> {
+/// Announce new inbox mail; attach a verification code when the body already has one.
+fn notify_arrived(db: &Db, account_id: i64, arrived: &[ArrivedMail], notifier: &dyn Notifier) {
+    let conn = db::lock(db);
+    let mail: Vec<(String, String, Option<String>)> = arrived
+        .iter()
+        .map(|m| {
+            let code = db::message_detail(&conn, m.id)
+                .ok()
+                .and_then(|detail| match crate::verification_code::detect(&detail.summary.subject, &detail.plain) {
+                    crate::verification_code::Detection::Found(code) => Some(code),
+                    _ => None,
+                });
+            (m.from.clone(), m.subject.clone(), code)
+        })
+        .collect();
+    notifier.new_mail(account_id, &mail);
+}
+
+async fn sync_folder(db: &Db, session: &mut Session, account_id: i64, folder_id: i64, path: &str, name: &str, notifier: &dyn Notifier) -> Result<Vec<ArrivedMail>> {
     let mailbox = imap::select(session, path).await?;
     let is_inbox = path.eq_ignore_ascii_case("INBOX");
     let blocked = if is_inbox { crate::blocked::list(&db::lock(db))? } else { Vec::new() };
@@ -77,7 +109,7 @@ async fn sync_folder(db: &Db, session: &mut Session, account_id: i64, folder_id:
             db::get_setting(&conn, "focus_overrides")?.and_then(|json| serde_json::from_str(&json).ok()).unwrap_or_default();
         (if is_inbox { db::list_rules(&conn)? } else { Vec::new() }, overrides, focused_inbox)
     };
-    let mut arrived: Vec<(String, String)> = Vec::new();
+    let mut arrived: Vec<ArrivedMail> = Vec::new();
     let mut to_rule: Vec<(i64, parse::Header)> = Vec::new();
 
     // A changed UIDVALIDITY means the server renumbered everything: start over.
@@ -200,7 +232,11 @@ async fn sync_folder(db: &Db, session: &mut Session, account_id: i64, folder_id:
                 } else if is_inbox && unread && !local.is_empty() {
                     // With the Focused inbox off, every new message is announced.
                     if header.focused || !focused_inbox {
-                        arrived.push((header.from_name.clone(), header.subject.clone()));
+                        arrived.push(ArrivedMail {
+                            id,
+                            from: header.from_name.clone(),
+                            subject: header.subject.clone(),
+                        });
                     }
                     to_rule.push((id, header));
                 }
@@ -219,10 +255,7 @@ async fn sync_folder(db: &Db, session: &mut Session, account_id: i64, folder_id:
     for (id, header) in &to_rule {
         crate::rules::apply(db, &rules, account_id, *id, header, chrono::Utc::now().timestamp())?;
     }
-    if !arrived.is_empty() {
-        notifier.new_mail(account_id, &arrived);
-    }
-    Ok(())
+    Ok(arrived)
 }
 
 async fn move_on_server(session: &mut Session, src: &str, uid: u32, dst: &str) -> Result<()> {

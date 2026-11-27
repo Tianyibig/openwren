@@ -19,6 +19,7 @@ pub mod storage;
 pub mod store;
 pub mod sync;
 pub mod updates;
+pub mod verification_code;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -229,13 +230,24 @@ impl sync::Notifier for UiNotifier {
     fn changed(&self, account_id: i64) {
         let _ = self.0.emit("mail-changed", account_id);
     }
-    fn new_mail(&self, _account_id: i64, mail: &[(String, String)]) {
+    fn new_mail(&self, _account_id: i64, mail: &[(String, String, Option<String>)]) {
         let state = self.0.state::<AppState>();
         if db::get_setting(&db::lock(&state.db), "notifications").ok().flatten().as_deref() == Some("off") {
             return;
         }
-        let (title, body) = match mail {
-            [(from, subject)] => (from.clone(), subject.clone()),
+        // Mail with a unique verification code gets its own notice showing the code
+        // (MailX Linux style — text only; no OS action button yet).
+        let (codes, plain): (Vec<_>, Vec<_>) = mail.iter().partition(|m| m.2.is_some());
+        for (from, subject, code) in &codes {
+            let code = code.as_deref().unwrap_or("");
+            let body = if subject.is_empty() { code.to_string() } else { format!("{code}\n{subject}") };
+            let _ = self.0.notification().builder().title(from.clone()).body(body).show();
+        }
+        if plain.is_empty() {
+            return;
+        }
+        let (title, body) = match plain.as_slice() {
+            [(from, subject, _)] => (from.clone(), subject.clone()),
             many => (format!("{} new messages", many.len()), many.iter().take(3).map(|m| m.0.as_str()).collect::<Vec<_>>().join(", ")),
         };
         let _ = self.0.notification().builder().title(title).body(body).show();

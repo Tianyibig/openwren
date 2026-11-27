@@ -6,7 +6,7 @@ Reference: [GuqierMcl/MailX](https://github.com/GuqierMcl/MailX) (Apache-2.0). O
 
 Encrypted SQLCipher database, phishing and tracker protections, unsubscribe, Focused/Other, snooze, rules, categories, pins, unlimited local search with server fallback, undo send / send later, English/Chinese UI, Chinese mailbox presets (QQ / 163 / 126 / yeah / 139 / Sina / Aliyun / Exmail).
 
-## Absorbed in this change
+## Absorbed so far
 
 | MailX advantage | OpenWren change |
 | --- | --- |
@@ -15,6 +15,8 @@ Encrypted SQLCipher database, phishing and tracker protections, unsubscribe, Foc
 | iCloud Mail preset | `imap.mail.me.com` + `smtp.mail.me.com:587` STARTTLS with app-specific password steps |
 | Feishu / Lark Mail presets | Organisation presets with dedicated-password guidance |
 | Verification-code shortcut | Local heuristic on subject + plain body; copy bar in the reading pane |
+| Verification-code desktop notice | After inbox bodies download, unique OTP is shown in the system notification text |
+| Trash after copying a code | Settings → Notifications (off by default); reading-pane copy only; undo via toast |
 
 ## Next waves (not in this change)
 
@@ -29,7 +31,7 @@ Ordered by fit with OpenWren’s privacy-first stance and engineering cost.
 ### Wave B — Reading helpers
 
 1. **In-place translation** (subject + body, layout-preserving), with explicit consent and user-supplied DeepL / Microsoft / Google keys (or documented free channels). Translations stay local; remote images and attachments are never sent.
-2. **Verification-code notifications** (copy from the system notification) and optional “trash after copy”, matching MailX’s desktop lifecycle rules.
+2. **Native OS “Copy code” notification actions** (Windows / macOS), matching MailX’s richer desktop lifecycle — Linux already shows the code in the notice text.
 
 ### Wave C — AI / MCP (opt-in only)
 

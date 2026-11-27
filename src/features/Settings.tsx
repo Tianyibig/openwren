@@ -880,6 +880,17 @@ function Notifications() {
           ["off", tr("privacyPage.off")],
         ]}
       />
+      <p className="mb-4 -mt-2 text-[13px] text-ink2">{tr("notify.verificationNote")}</p>
+      <Options
+        label={tr("notify.trashAfterCopy")}
+        value={settings.trash_verification_after_copy === "on" ? "on" : "off"}
+        onChange={(v) => void setSetting("trash_verification_after_copy", v)}
+        options={[
+          ["on", tr("privacyPage.on")],
+          ["off", tr("privacyPage.off")],
+        ]}
+      />
+      <p className="mb-4 -mt-2 text-[13px] text-ink2">{tr("notify.trashAfterCopyNote")}</p>
       <Options
         label={tr("notify.closeToTray")}
         value={settings.close_to_tray === "off" ? "off" : "on"}
