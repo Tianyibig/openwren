@@ -24,7 +24,8 @@ export const SHORTCUT_GROUPS: { id: ShortcutGroup; labelKey: string }[] = [
 export const SHORTCUTS: ShortcutRow[] = [
   { id: "next", keys: [["↓"]], group: "browse", labelKey: "shortcuts.next" },
   { id: "previous", keys: [["↑"]], group: "browse", labelKey: "shortcuts.previous" },
-  { id: "search", keys: [[MOD, "K"]], group: "browse", labelKey: "shortcuts.search" },
+  { id: "palette", keys: [[MOD, "K"]], group: "browse", labelKey: "shortcuts.palette" },
+  { id: "search", keys: [[MOD, "E"]], group: "browse", labelKey: "shortcuts.search" },
   { id: "help", keys: [["?"]], group: "browse", labelKey: "shortcuts.help" },
   { id: "archive", keys: [["Backspace"]], group: "act", labelKey: "shortcuts.archive" },
   {

@@ -205,10 +205,10 @@ export function MessageList({ width }: { width: number }) {
   const only = useStore((s) => s.only);
   const setOnly = useStore((s) => s.setOnly);
   const search = useRef<HTMLInputElement>(null);
-  // Ctrl+K (or Ctrl+E, as in Outlook) jumps to search.
+  // Ctrl+E (Outlook) jumps to the list search box. Ctrl+K opens the command palette instead.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (mod(e) && ["k", "e"].includes(e.key.toLowerCase())) {
+      if (mod(e) && e.key.toLowerCase() === "e") {
         e.preventDefault();
         search.current?.focus();
       }
@@ -287,7 +287,7 @@ export function MessageList({ width }: { width: number }) {
               <IconX size={16} />
             </button>
           ) : (
-            <span className="flex-none text-[11px] text-ink3">{MOD} K</span>
+            <span className="flex-none text-[11px] text-ink3">{MOD} E</span>
           )}
         </label>
         {query ? (

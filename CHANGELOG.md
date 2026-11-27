@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Press ? for a keyboard shortcut list, also under Settings → Shortcuts.
+- Ctrl+K (⌘K) opens a command palette: search mail, jump to a folder, or run a command. Ctrl+E still focuses the list search box.
 - Quoted replies in HTML mail are folded behind “Show quoted text”, so the new part of the message comes first. Forwards and quote-only messages are left as they are.
 - Plain-text replies fold trailing `>` quotes the same way.
 - Outlook (web and desktop), QQ “原始邮件”, and “-----Original Message-----” reply separators are folded too.

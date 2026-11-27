@@ -6,6 +6,7 @@ import { MessageList } from "../features/MessageList";
 import { Onboarding } from "../features/Onboarding";
 import { Overview } from "../features/Overview";
 import { ReadingPane } from "../features/ReadingPane";
+import { CommandPalette } from "../features/CommandPalette";
 import { ShortcutHelp } from "../features/ShortcutHelp";
 import { SourceView } from "../features/SourceView";
 import { ErrorBoundary } from "../components/ErrorBoundary";
@@ -63,24 +64,38 @@ function typing(target: EventTarget | null): boolean {
 }
 
 /** Keyboard shortcuts, following Outlook's (PLAN.md 6.4). */
-function onShortcut(e: KeyboardEvent, help: { open: boolean; set: (on: boolean) => void }) {
+function onShortcut(
+  e: KeyboardEvent,
+  help: { open: boolean; set: (on: boolean) => void },
+  palette: { open: boolean; set: (on: boolean) => void },
+) {
   // An input method that is still composing owns the keyboard: Enter picks a
   // candidate, the arrows move between them, and no shortcut may fire in between.
   if (composing(e)) return;
   const s = useStore.getState();
   if (s.dialog || s.welcome || s.whatsNew) return;
   const key = e.key;
+  // Ctrl+K opens the command palette (search + jump + actions).
+  if (mod(e) && key.toLowerCase() === "k") {
+    e.preventDefault();
+    help.set(false);
+    palette.set(!palette.open);
+    return;
+  }
   // ? opens or closes the shortcut list (Shift+/ on many layouts).
   if (!typing(e.target) && !s.draft && !e.ctrlKey && !e.metaKey && !e.altKey && (key === "?" || (e.shiftKey && key === "/"))) {
     e.preventDefault();
+    palette.set(false);
     help.set(!help.open);
     return;
   }
-  if (help.open) {
+  if (help.open || palette.open) {
     if (key === "Escape") {
       e.preventDefault();
       help.set(false);
+      palette.set(false);
     }
+    // The palette owns arrow keys and Enter while open.
     return;
   }
   const lower = key.toLowerCase();
@@ -206,12 +221,14 @@ export function App() {
   }, [lang]);
 
   const [helpOpen, setHelpOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   useEffect(() => {
     void init();
-    const onKey = (e: KeyboardEvent) => onShortcut(e, { open: helpOpen, set: setHelpOpen });
+    const onKey = (e: KeyboardEvent) =>
+      onShortcut(e, { open: helpOpen, set: setHelpOpen }, { open: paletteOpen, set: setPaletteOpen });
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [init, helpOpen]);
+  }, [init, helpOpen, paletteOpen]);
 
   const font = useStore((s) => fontChoice(s.settings.font));
   const systemFont = useStore((s) => s.systemFont);
@@ -258,10 +275,11 @@ export function App() {
         )}
       </main>
       {welcome && <Onboarding />}
-      {!welcome && !dialog && !helpOpen && <WhatsNewDialog />}
+      {!welcome && !dialog && !helpOpen && !paletteOpen && <WhatsNewDialog />}
       {dialog === "add-account" && <AddAccount />}
       {dialog === "settings" && <Settings />}
       {helpOpen && !dialog && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
+      {paletteOpen && !dialog && <CommandPalette open onClose={() => setPaletteOpen(false)} />}
       {sourceOf !== null && <SourceView key={sourceOf} id={sourceOf} />}
       <ToastBar />
     </div>

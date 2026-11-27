@@ -22,6 +22,7 @@ Encrypted SQLCipher database, phishing and tracker protections, unsubscribe, Foc
 | Forgotten-attachment reminder | Composer warns before send when the draft mentions an attachment but has none |
 | Trailing quote fold | HTML and plain-text replies fold the last quote behind “Show quoted text” (Outlook / QQ / Original Message too) |
 | Keyboard shortcut help | Press ? for an overlay; Settings → Shortcuts lists the same catalog |
+| Command palette | Ctrl/⌘K: search, jump to views/folders, compose / settings / sync / theme |
 
 ## Next waves (not in this change)
 
