@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Hover a message in the list for quick actions: archive, delete, flag, and pin (same pattern as drafts).
 - Press ? for a keyboard shortcut list, also under Settings → Shortcuts.
 - Quoted replies in HTML mail are folded behind “Show quoted text”, so the new part of the message comes first. Forwards and quote-only messages are left as they are.
 - Plain-text replies fold trailing `>` quotes the same way.
