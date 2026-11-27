@@ -369,6 +369,15 @@ export const MESSAGES: Record<string, { en: string; zh: string }> = {
   "rules.target": { en: ": {value}", zh: "：{value}" },
 
   "notify.focused": { en: "Desktop notification when new mail arrives in Focused", zh: "重点收件箱有新邮件时弹出桌面通知" },
+  "notify.verificationNote": {
+    en: "When a new message has a unique verification code, the notification shows the code so you can type it without opening the mail.",
+    zh: "新邮件里若有唯一验证码，通知会直接显示该码，无需打开邮件即可输入。",
+  },
+  "notify.trashAfterCopy": { en: "Move to Trash after copying a verification code", zh: "复制验证码后移到已删除" },
+  "notify.trashAfterCopyNote": {
+    en: "Off by default. Only the copy button in the reading pane does this, and you can undo the move from the toast.",
+    zh: "默认关闭。仅阅读区的复制按钮会触发，且可从提示中撤销移动。",
+  },
   "notify.closeToTray": { en: "When the window is closed", zh: "关闭窗口时" },
   "notify.keepInTray": { en: "Keep running in the tray", zh: "留在托盘里继续运行" },
   "notify.quit": { en: "Quit OpenWren", zh: "退出 OpenWren" },

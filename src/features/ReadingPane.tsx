@@ -52,9 +52,11 @@ function Centered({ children }: { children: React.ReactNode }) {
 }
 
 /** A one-line bar that offers to copy a unique verification code from this message. */
-function VerificationCodeBar({ subject, body }: { subject: string; body: string }) {
+function VerificationCodeBar({ id, subject, body }: { id: number; subject: string; body: string }) {
   const tr = useT();
   const showToast = useStore((s) => s.showToast);
+  const deleteMessages = useStore((s) => s.deleteMessages);
+  const trashAfterCopy = useStore((s) => s.settings.trash_verification_after_copy === "on");
   const found = useMemo(() => detectVerificationCode(subject, body), [subject, body]);
   const [copied, setCopied] = useState(false);
   if (found.status !== "found") return null;
@@ -70,6 +72,7 @@ function VerificationCodeBar({ subject, body }: { subject: string; body: string 
             () => {
               setCopied(true);
               window.setTimeout(() => setCopied(false), 1500);
+              if (trashAfterCopy) void deleteMessages([id]);
             },
             () => showToast(tr("reader.copyCodeFailed")),
           );
@@ -516,7 +519,7 @@ export function ReadingPane() {
 
       {warnings.length > 0 && <Warning key={`warning-${m.id}`} id={m.id} reasons={warnings} />}
       {m.unsubscribe && !isDraft && <Unsubscribe key={`unsubscribe-${m.id}`} sender={m.fromName} kind={m.unsubscribe} to={m.unsubscribeTo ?? tr("reader.unsubTo")} />}
-      {!isDraft && <VerificationCodeBar key={`otp-${m.id}`} subject={m.subject} body={m.plain} />}
+      {!isDraft && <VerificationCodeBar key={`otp-${m.id}`} id={m.id} subject={m.subject} body={m.plain} />}
 
       {m.html ? (
         <HtmlBody key={`body-${m.id}`} sender={m.fromAddress} confirmed={senderConfirmed(m.auth, authServer)} html={cleaned?.html ?? m.html} note={trackerNote(cleaned?.pixels ?? 0, cleaned?.links ?? 0)} />

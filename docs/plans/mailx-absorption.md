@@ -17,6 +17,8 @@ Encrypted SQLCipher database, phishing and tracker protections, unsubscribe, Foc
 | Verification-code shortcut | Local heuristic on subject + plain body; copy bar in the reading pane |
 | Sidebar top views | Cross-account Today / Inbox / Starred / Drafts / Sent (+ More); collapsible accounts |
 | Lightweight “Now” | Today overview of unread + recent mail + drafts — no AI, no MCP |
+| Verification-code desktop notice | After inbox bodies download, unique OTP is shown in the system notification text |
+| Trash after copying a code | Settings → Notifications (off by default); reading-pane copy only; undo via toast |
 
 ## Next waves (not in this change)
 
@@ -31,7 +33,7 @@ Ordered by fit with OpenWren’s privacy-first stance and engineering cost.
 ### Wave B — Reading helpers
 
 1. **In-place translation** (subject + body, layout-preserving), with explicit consent and user-supplied DeepL / Microsoft / Google keys (or documented free channels). Translations stay local; remote images and attachments are never sent.
-2. **Verification-code notifications** (copy from the system notification) and optional “trash after copy”, matching MailX’s desktop lifecycle rules.
+2. **Native OS “Copy code” notification actions** (Windows / macOS), matching MailX’s richer desktop lifecycle — Linux already shows the code in the notice text.
 
 ### Wave C — AI / MCP (opt-in only)
 
