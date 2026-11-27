@@ -20,6 +20,14 @@ describe("foldPlainQuotes", () => {
     expect(foldPlainQuotes(text)).toBeNull();
   });
 
+  it("folds a trailing Original Message separator", () => {
+    const text = "Sounds good\n\n-----Original Message-----\nFrom: Bob\nSubject: Hi\n\nold text";
+    const folded = foldPlainQuotes(text);
+    expect(folded?.head).toBe("Sounds good");
+    expect(folded?.quote).toContain("Original Message");
+    expect(folded?.quote).toContain("old text");
+  });
+
   it("does not fold quote-only bodies", () => {
     expect(foldPlainQuotes("> only quote\n> more")).toBeNull();
   });
