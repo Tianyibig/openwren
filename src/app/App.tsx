@@ -5,6 +5,7 @@ import { FolderPane } from "../features/FolderPane";
 import { MessageList } from "../features/MessageList";
 import { Onboarding } from "../features/Onboarding";
 import { Overview } from "../features/Overview";
+import { OutboxPane } from "../features/OutboxPane";
 import { ReadingPane } from "../features/ReadingPane";
 import { CommandPalette } from "../features/CommandPalette";
 import { ShortcutHelp } from "../features/ShortcutHelp";
@@ -12,7 +13,7 @@ import { SourceView } from "../features/SourceView";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { Button } from "../components/ui";
 import { fontChoice, fontStack } from "../lib/font";
-import { isOverview, useStore } from "../store";
+import { isOutbox, isOverview, useStore } from "../store";
 import { composing, isMac, mod } from "../lib/keys";
 import { useLang } from "../lib/useTranslate";
 import { REPOSITORY } from "../lib/links";
@@ -253,6 +254,7 @@ export function App() {
   const [folderWidth, setFolderWidth] = useState(220);
   const [listWidth, setListWidth] = useState(340);
   const today = isOverview(folderId);
+  const outbox = isOutbox(folderId);
   return (
     <div className="relative flex h-full flex-col">
       <main className="flex min-h-0 flex-1 bg-card">
@@ -261,6 +263,10 @@ export function App() {
         {today ? (
           <ErrorBoundary what="Today" resetKey={folderId}>
             <Overview />
+          </ErrorBoundary>
+        ) : outbox ? (
+          <ErrorBoundary what="Outbox" resetKey={folderId}>
+            <OutboxPane />
           </ErrorBoundary>
         ) : (
           <>

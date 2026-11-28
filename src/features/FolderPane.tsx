@@ -21,7 +21,7 @@ import {
 import { useEffect, useState } from "react";
 import logo from "../../src-tauri/icons/128x128.png";
 import { Button, ContextMenu } from "../components/ui";
-import { VIEW, isOverview, isVirtualView, useStore, virtualFolder } from "../store";
+import { VIEW, isOutbox, isOverview, isVirtualView, useStore, virtualFolder } from "../store";
 import { useT } from "../lib/useTranslate";
 import type { Translate } from "../lib/useTranslate";
 import { DRAG_TYPE } from "./MessageList";
@@ -122,6 +122,7 @@ function FolderRow({
 function TopViews({ folders }: { folders: Folder[] }) {
   const tr = useT();
   const folderId = useStore((s) => s.folderId);
+  const outboxCount = useStore((s) => s.outbox?.length ?? 0);
   const [more, setMore] = useState(false);
   const primary: { id: number; label: string }[] = [
     { id: VIEW.overview, label: tr("folder.today") },
@@ -157,6 +158,19 @@ function TopViews({ folders }: { folders: Folder[] }) {
   return (
     <section className="flex flex-none flex-col gap-px pb-1">
       {primary.map((v) => row(v.id, v.label))}
+      {/* Outbox only while something is waiting or failed (MailX-style). */}
+      {(outboxCount > 0 || isOutbox(folderId)) && (
+        <button
+          type="button"
+          onClick={() => useStore.getState().selectFolder(VIEW.outbox)}
+          aria-current={isOutbox(folderId)}
+          className={`flex w-full flex-none items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left ${isOutbox(folderId) ? "bg-sel text-ink" : "text-ink2 hover:bg-hover"}`}
+        >
+          <IconArrowUpCircle size={18} stroke={1.6} className="flex-none" />
+          <span className="truncate">{tr("folder.outbox")}</span>
+          {outboxCount > 0 && <span className="ml-auto pl-1 text-xs text-ink3">{outboxCount}</span>}
+        </button>
+      )}
       <button type="button" onClick={() => setMore(!showMore)} aria-expanded={showMore} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-ink2 hover:bg-hover">
         <IconDots size={18} stroke={1.6} className="flex-none" />
         {showMore ? tr("folder.less") : tr("folder.more")}

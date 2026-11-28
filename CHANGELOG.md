@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Outbox appears in the sidebar while mail is waiting to send or failed. Retry or cancel there; a failed-send toast can open it.
 - Right-click a message → “Show mail from this contact” lists that sender’s mail across folders (junk and trash excluded). Back or Esc returns.
 - Hover a message in the list for quick actions: archive, delete, flag, and pin (same pattern as drafts).
 - Press ? for a keyboard shortcut list, also under Settings → Shortcuts.

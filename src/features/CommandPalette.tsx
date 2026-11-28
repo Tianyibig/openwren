@@ -1,5 +1,6 @@
 import {
   IconArchive,
+  IconArrowUpCircle,
   IconInbox,
   IconMailOff,
   IconMoon,
@@ -47,6 +48,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const setQuery = useStore((s) => s.setQuery);
   const setSetting = useStore((s) => s.setSetting);
   const query = useStore((s) => s.query);
+  const outboxCount = useStore((s) => s.outbox?.length ?? 0);
   const [text, setText] = useState("");
   const [active, setActive] = useState(0);
   const input = useRef<HTMLInputElement>(null);
@@ -88,6 +90,9 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       { id: "view-starred", title: tr("folder.starred"), icon: IconStar, run: () => selectFolder(VIEW.flagged) },
       { id: "view-drafts", title: tr("folder.drafts"), icon: IconPencil, run: () => selectFolder(VIEW.drafts) },
       { id: "view-sent", title: tr("folder.sent"), icon: IconSend, run: () => selectFolder(VIEW.sent) },
+      ...(outboxCount > 0
+        ? [{ id: "view-outbox", title: tr("folder.outbox"), keywords: "queue send failed", icon: IconArrowUpCircle, run: () => selectFolder(VIEW.outbox) }]
+        : []),
       { id: "view-archive", title: tr("folder.archive"), icon: IconArchive, run: () => selectFolder(VIEW.archive) },
       { id: "view-junk", title: tr("folder.junk"), icon: IconMailOff, run: () => selectFolder(VIEW.junk) },
       { id: "view-trash", title: tr("folder.trash"), icon: IconTrash, run: () => selectFolder(VIEW.trash) },
@@ -103,7 +108,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       };
     });
     return [...views, ...accountFolders];
-  }, [tr, selectFolder, folders, accounts]);
+  }, [tr, selectFolder, folders, accounts, outboxCount]);
 
   const typed = text.trim();
   const shownCommands = commands.filter((e) => matches(typed, e));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { VIEW, currentFolder, isOverview, isVirtualView, virtualFolder } from "../store";
+import { VIEW, currentFolder, isOutbox, isOverview, isVirtualView, virtualFolder } from "../store";
 import type { Folder } from "../types";
 
 const folders: Folder[] = [
@@ -16,6 +16,8 @@ describe("virtual views", () => {
     expect(isVirtualView(VIEW.overview)).toBe(false);
     expect(isOverview(VIEW.overview)).toBe(true);
     expect(isOverview(VIEW.inbox)).toBe(false);
+    expect(isOutbox(VIEW.outbox)).toBe(true);
+    expect(isVirtualView(VIEW.outbox)).toBe(false);
   });
 
   it("sums unread for inbox and drafts across accounts", () => {
@@ -24,8 +26,9 @@ describe("virtual views", () => {
     expect(virtualFolder(VIEW.sent, folders)?.name).toBe("Sent");
   });
 
-  it("currentFolder skips Today and resolves virtual or real folders", () => {
+  it("currentFolder skips Today and Outbox and resolves virtual or real folders", () => {
     expect(currentFolder({ folders, folderId: VIEW.overview })).toBeUndefined();
+    expect(currentFolder({ folders, folderId: VIEW.outbox })).toBeUndefined();
     expect(currentFolder({ folders, folderId: VIEW.inbox })?.id).toBe(VIEW.inbox);
     expect(currentFolder({ folders, folderId: 1 })?.name).toBe("Inbox");
   });

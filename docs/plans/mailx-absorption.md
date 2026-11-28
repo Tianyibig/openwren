@@ -25,6 +25,7 @@ Encrypted SQLCipher database, phishing and tracker protections, unsubscribe, Foc
 | Command palette | Ctrl/⌘K: search, jump to views/folders, compose / settings / sync / theme |
 | List-row hover actions | Archive · delete · flag · pin on hover (same rail as draft discard) |
 | Show mail from contact | Context menu opens a sender list (junk/trash excluded); Back / Esc leave |
+| Outbox in the sidebar | Shows while the send queue is non-empty; retry/cancel; failed-send toast opens it |
 
 ## Next waves (not in this change)
 

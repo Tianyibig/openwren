@@ -17,6 +17,7 @@ import type {
   MessageDetail,
   MessageSummary,
   MoveTarget,
+  OutboxItem,
   Progress,
   SavedSignature,
   SearchFilters,
@@ -52,6 +53,8 @@ export const VIEW = {
   trash: -7,
   /** Lightweight overview pane; not a mail list. */
   overview: -8,
+  /** Queued / failed sends; not a mail list. */
+  outbox: -9,
 } as const;
 
 /** @deprecated Prefer VIEW.inbox — kept for older call sites. */
@@ -63,6 +66,10 @@ export function isVirtualView(id: number | null | undefined): boolean {
 
 export function isOverview(id: number | null | undefined): boolean {
   return id === VIEW.overview;
+}
+
+export function isOutbox(id: number | null | undefined): boolean {
+  return id === VIEW.outbox;
 }
 
 /** A synthetic folder for a cross-account view, with an unread total where it makes sense. */
@@ -96,7 +103,7 @@ export function allInboxes(folders: Folder[]): Folder {
 
 /** The folder being shown, which may be a cross-account view. */
 export function currentFolder(s: { folders: Folder[]; folderId: number | null }): Folder | undefined {
-  if (s.folderId === null || isOverview(s.folderId)) return undefined;
+  if (s.folderId === null || isOverview(s.folderId) || isOutbox(s.folderId)) return undefined;
   return isVirtualView(s.folderId) ? virtualFolder(s.folderId, s.folders) : s.folders.find((f) => f.id === s.folderId);
 }
 
@@ -151,10 +158,14 @@ interface State {
   whatsNew: WhatsNew | null;
   /** User preferences, as stored (all strings). */
   settings: Record<string, string>;
+  /** Queued / failed sends; null until the first fetch. */
+  outbox: OutboxItem[] | null;
 
   init: () => Promise<void>;
   /** Re-read folders and the current list after the mail engine reports a change. */
   refresh: () => Promise<void>;
+  /** Re-read the send queue; leaves the Outbox view when it empties. */
+  refreshOutbox: () => Promise<void>;
   loadPreferences: () => Promise<void>;
   setSetting: (key: string, value: string) => Promise<void>;
   selectFolder: (id: number) => void;
@@ -409,6 +420,7 @@ export const useStore = create<State>((set, get) => {
     query: "",
     filters: noFilters,
     contactView: null,
+    outbox: null,
     draft: null,
     drafts: [],
     dialog: null,
@@ -435,11 +447,17 @@ export const useStore = create<State>((set, get) => {
       backend.onProgress((p) => set((s) => ({ progress: { ...s.progress, [p.accountId]: p } })));
       backend.onUpdate((update) => set({ update }));
       void backend.updateStatus().then((update) => set({ update })).catch(() => {});
-      backend.onSendFailed((f) => get().showToast(tr("toast.sendFailed", { subject: f.subject || tr("list.noSubject"), error: f.error })));
+      backend.onSendFailed((f) => {
+        void get().refreshOutbox();
+        get().showToast(tr("toast.sendFailed", { subject: f.subject || tr("list.noSubject"), error: f.error }), {
+          label: tr("toast.openOutbox"),
+          run: () => get().selectFolder(VIEW.outbox),
+        });
+      });
       backend.onSentCopyFailed((f) => get().showToast(tr("toast.sentCopyFailed", { subject: f.subject || tr("list.noSubject"), error: f.error })));
       const info = backend.appInfo().catch((e) => (console.error("app_info failed", e), null));
       void info.then((i) => i && set({ systemFont: { family: i.systemFont, light: i.systemFontLight } }));
-      await Promise.all([get().refresh(), get().loadPreferences()]);
+      await Promise.all([get().refresh(), get().loadPreferences(), get().refreshOutbox()]);
       // A first start (no account yet, welcome never finished) opens on the welcome screens.
       const firstStart = get().accounts.length === 0 && get().settings.onboarded !== "yes";
       set({ ready: true, welcome: firstStart });
@@ -462,7 +480,8 @@ export const useStore = create<State>((set, get) => {
       const [accounts, folders, saved] = await Promise.all([backend.listAccounts(), backend.listFolders(), backend.listDrafts()]);
       const current = get().folderId;
       const kept =
-        current !== null && (isOverview(current) || isVirtualView(current) ? accounts.length > 0 : folders.some((f) => f.id === current));
+        current !== null &&
+        (isOverview(current) || isOutbox(current) || isVirtualView(current) ? accounts.length > 0 : folders.some((f) => f.id === current));
       // Prefer the cross-account Inbox when starting fresh with more than one account.
       const folderId = kept
         ? current
@@ -478,6 +497,17 @@ export const useStore = create<State>((set, get) => {
       });
       set({ accounts, folders, folderId, drafts });
       await loadList(true);
+    },
+
+    refreshOutbox: async () => {
+      try {
+        const items = await backend.listOutbox();
+        set({ outbox: items });
+        // MailX leaves Outbox when the queue empties while that view is open.
+        if (items.length === 0 && isOutbox(get().folderId)) get().selectFolder(VIEW.sent);
+      } catch (e) {
+        console.error("listOutbox failed", e);
+      }
     },
 
     loadPreferences: async () => {
@@ -887,6 +917,7 @@ export const useStore = create<State>((set, get) => {
       });
       set({ draft: null });
       if (draft.id !== undefined) await get().deleteDraft(draft.id);
+      void get().refreshOutbox();
       const undo = {
         label: sendAt ? tr("reader.cancel") : tr("toast.undo"),
         run: () =>
@@ -897,6 +928,7 @@ export const useStore = create<State>((set, get) => {
             void get()
               .saveDraft(again)
               .then((id) => set({ draft: { ...again, id } }));
+            void get().refreshOutbox();
           }),
       };
       get().showToast(sendAt ? tr("toast.scheduled", { when: longTime(new Date(sendAt * 1000), new Date()) }) : delay > 0 ? tr("toast.sendingIn", { n: delay }) : tr("reader.sending"), undo, sendAt || delay <= 0 ? undefined : at * 1000);

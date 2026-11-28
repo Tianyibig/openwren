@@ -6,16 +6,16 @@ import type { AppInfo, StorageInfo } from "../backend";
 import { RichText } from "../components/RichText";
 import { Button, Chip, ErrorNote, IconButton, categories, fieldBox, fieldCaption } from "../components/ui";
 import { TEXT_SIZES, fontChoice } from "../lib/font";
-import { longTime } from "../lib/dates";
 import { LANGUAGES, language } from "../lib/i18n";
 import { useT } from "../lib/useTranslate";
 import { REPOSITORY, SPONSOR_PAGE, WEBSITE } from "../lib/links";
 import { pictureFromFile, signatureHtml } from "../lib/signature";
-import { useStore } from "../store";
+import { VIEW, useStore } from "../store";
 import type { SettingsPage } from "../store";
-import type { OutboxItem, Rule, RulesSweep, SavedSignature } from "../types";
+import type { Rule, RulesSweep, SavedSignature } from "../types";
 import { statusText } from "./FolderPane";
 import { imageSenders } from "./HtmlBody";
+import { OutboxList } from "./OutboxPane";
 import { ShortcutList } from "./ShortcutHelp";
 
 const pages: [SettingsPage, string, typeof IconBell][] = [
@@ -498,72 +498,32 @@ function Sync() {
 /** Messages written but not on the server yet: scheduled, or waiting for another try. */
 function QueuedSends() {
   const tr = useT();
-  const showToast = useStore((s) => s.showToast);
-  const [items, setItems] = useState<OutboxItem[] | null>(null);
-  const [error, setError] = useState("");
-  const reload = () =>
-    backend
-      .listOutbox()
-      .then(setItems)
-      .catch((e) => setError(errorText(e)));
+  const refreshOutbox = useStore((s) => s.refreshOutbox);
+  const setDialog = useStore((s) => s.setDialog);
+  const selectFolder = useStore((s) => s.selectFolder);
+  const count = useStore((s) => s.outbox?.length ?? 0);
   useEffect(() => {
-    void reload();
-    // Nothing announces a send finishing or failing, so look again while the page is open.
-    const timer = setInterval(() => void reload(), 10_000);
+    void refreshOutbox();
+    const timer = setInterval(() => void refreshOutbox(), 10_000);
     return () => clearInterval(timer);
-  }, []);
-
-  async function retry(id: number) {
-    try {
-      if (await backend.retrySend(id)) showToast(tr("outbox.retried"));
-      await reload();
-    } catch (e) {
-      setError(errorText(e));
-    }
-  }
-
-  async function cancel(id: number) {
-    try {
-      if (await backend.cancelSend(id)) showToast(tr("outbox.cancelled"));
-      await reload();
-    } catch (e) {
-      setError(errorText(e));
-    }
-  }
-
-  const now = Math.floor(Date.now() / 1000);
+  }, [refreshOutbox]);
   return (
     <>
       <div className={`${fieldCaption} mt-5`}>{tr("outbox.title")}</div>
       <p className="mb-2 text-[13px] text-ink2">{tr("outbox.note")}</p>
-      {items === null ? (
-        <p className="text-[13px] text-ink3">…</p>
-      ) : items.length === 0 ? (
-        <p className="text-[13px] text-ink3">{tr("outbox.empty")}</p>
-      ) : (
-        <div className="divide-y divide-edge rounded-[10px] border border-edge">
-          {items.map((item) => (
-            <div key={item.id} className="px-3 py-2">
-              <div className="flex items-baseline gap-2">
-                <span className="min-w-0 flex-1 truncate text-[13px]">{item.subject || tr("list.noSubject")}</span>
-                <span className="flex-none text-xs text-ink3">{item.sendAt > now ? tr("outbox.scheduled", { when: longTime(new Date(item.sendAt * 1000), new Date()) }) : tr("outbox.waiting")}</span>
-              </div>
-              <div className="truncate text-xs text-ink2">{item.to}</div>
-              <div className="mt-1 text-xs text-ink3">{item.attempts > 0 ? tr("outbox.tried", { n: item.attempts }) : tr("outbox.firstTry")}</div>
-              {item.lastError && <div className="selectable mt-0.5 text-xs break-words text-danger">{tr("outbox.error", { error: item.lastError })}</div>}
-              <div className="mt-1.5 flex gap-2">
-                <Button className="h-7" onClick={() => void retry(item.id)}>
-                  {tr("outbox.retry")}
-                </Button>
-                <Button className="h-7" variant="ghost" onClick={() => void cancel(item.id)}>
-                  {tr("outbox.cancel")}
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
+      {count > 0 && (
+        <button
+          type="button"
+          className="mb-2 text-[13px] text-brand hover:underline"
+          onClick={() => {
+            setDialog(null);
+            selectFolder(VIEW.outbox);
+          }}
+        >
+          {tr("outbox.openSidebar")}
+        </button>
       )}
-      <Problem text={error} />
+      <OutboxList />
     </>
   );
 }
